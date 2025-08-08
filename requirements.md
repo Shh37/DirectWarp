@@ -11,12 +11,12 @@ DirectWarp は、Gemini を用いて検索クエリから直接、最も関連�
 - WXT
 
 ## 基本方針
-1. 検索クエリの先頭に「!d」を付けるとDirectWarpが起動する（デフォルトトリガー）。
-2. トリガーの先頭が「!」である必要はない（先頭制約なし）。このトリガーは設定画面から変更可能。
+1. 検索クエリの先頭に「/d」を付けるとDirectWarpが起動する（デフォルトトリガー、先頭一致）。
+2. トリガー文字列は設定で任意に変更可能（先頭文字の種類に制約なし。例: /d, !d, #go など）。
 3. クエリを Gemini に入力し、AIのみで最も関連性の高いURLを選定してリダイレクトする（検索エンジン候補取得は行わない）。
-4. 生成候補数N、Geminiモデル、タイムアウト、APIキーは設定画面で指定可能（デフォルト: N=3）。
+4. 生成候補数N、Geminiモデル（既定: gemini-1.5-flash）、タイムアウト、APIキーは設定画面で指定可能（デフォルト: N=3）。
 5. 設定変更は次回の検索から反映（リアルタイム反映不要）。
-6. モデルが確信度の低い結果しか返せない場合は、ローディング画面にエラーメッセージを表示し、検索ページへ戻るか処理を中断する（フォールバックで検索エンジンの結果取得は行わない）。
+6. モデルが確信度の低い結果しか返せない/失敗した場合は、ローディングオーバーレイにエラーメッセージを表示し、2秒後に検索エンジン（Google/Bing）の検索ページへトリガーを除いたクエリで戻す（フォールバックで検索結果の取得は行わない）。
 
 ## アーキテクチャ構成
 
@@ -26,6 +26,7 @@ DirectWarp は、Gemini を用いて検索クエリから直接、最も関連�
   - background.ts
 - content/
   - content.ts
+  - LoadingOverlay.tsx
 - popup/
   - Popup.tsx
   - ProviderForm.tsx
@@ -44,6 +45,17 @@ DirectWarp は、Gemini を用いて検索クエリから直接、最も関連�
   - tailwind.config.ts
   - globals.css
 ```
+
+### 起動経路と権限設計（最小権限）
+- 起動経路
+  - Google/Bing の検索ページ上で content script（`content.ts`）が検索ボックスのクエリ先頭を監視。
+  - トリガー一致時にオーバーレイ（`LoadingOverlay.tsx`）を表示し、background にメッセージ送信。
+  - background（`background.ts`）が `lib/apiClients/gemini.ts` を用いて Gemini API を呼び出し、結果URLを content に返す。
+  - content は結果に応じてページを遷移（成功: 結果URLへ、失敗: 2秒後にトリガーを除いた検索クエリで元の検索エンジンへ戻す）。
+- 権限（Manifest v3 想定）
+  - permissions: ["storage", "scripting"]
+  - host_permissions: ["https://www.google.com/*", "https://www.bing.com/*", "https://generativelanguage.googleapis.com/*"]
+  - 備考: Gemini API 呼び出しは background から行う。クロスオリジンの互換性確保のため Gemini API の明示的な許可を付与（Firefox でも同様）。
 
 ## 機能要件
 ### 1. 検索クエリの受け取りと処理
@@ -65,9 +77,9 @@ DirectWarp は、Gemini を用いて検索クエリから直接、最も関連�
 - 最小限のUI
   - メニュー（設定、現在のプロバイダ）
   - 保存ボタン（バリデーション結果によってエラー表示）
-- ローディングUIあり
+- ローディングUIあり（オーバーレイ表示）
   - 応答待機中にスピナー表示
-  - 失敗時にはエラーメッセージ表示 + 2秒後に検索画面へ戻る
+  - 失敗時にはエラーメッセージ表示 + 2秒後に、使用した検索エンジン（Google/Bing）の検索ページへ、トリガー文字列を除いたクエリで戻る
  - APIキー入力はマスキング（表示/非表示切替）と貼り付けに対応し、キーはログに出力しない
 
 ## 非機能要件
@@ -76,11 +88,11 @@ DirectWarp は、Gemini を用いて検索クエリから直接、最も関連�
 - 検索クエリ履歴は保存しない
 - APIキーはローカル（拡張機能ストレージ）に保存し、外部送信やログ出力を行わない
 - 例外やデバッグ出力にもAPIキーを含めない（マスキング）
- - 外部検索エンジンの結果ページへのアクセスやスクレイピングに依存しない（host_permissionsを最小化）
+ - 検索結果の取得やスクレイピングには依存しない。起動検知のために Google/Bing への最小限の host_permissions のみ付与
 
 ## テーマ・デザイン
 - ダーク / ライトテーマ対応
-- アクセントカラー：暗めの淡い青（例：#4A90E2）
+- アクセントカラー：藍鼠 #6B818E
 - Tailwind CSS 使用
 - UI構成：シンプル・ミニマル・コンパクト
 
@@ -93,3 +105,10 @@ DirectWarp は、Gemini を用いて検索クエリから直接、最も関連�
 ## ライセンス・公開
 - オープンソース（GitHub）
 - Chrome Web Store および Firefox Add-ons に公開予定
+
+## セキュリティ・責務分離
+- APIキーは background のみで保持し、content には渡さない（ログ・例外・メッセージングにも含めない）。
+- `lib/apiClients/gemini.ts` は background 専用（content から直接呼ばない）。
+
+## マルチプロバイダUIとの整合
+- MVPでは Gemini のみを有効化。`ProviderList`/`ProviderEditor` は将来拡張用のUIとし、現状は Gemini 固定（追加プロバイダの表示は非表示または無効化）。
