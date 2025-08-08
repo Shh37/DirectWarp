@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --accent: #6B818E;
+}
+
+/* Base theming */
+@layer base {
+  html { color-scheme: light dark; }
+  body { @apply text-sm font-sans; }
+}
+
+/* Components */
+@layer components {
+  .btn-primary { @apply bg-accent text-white px-3 py-1.5 rounded-xl border border-black/10; }
+}
