@@ -16,6 +16,8 @@ export interface AppSettings {
   model: GeminiModel;
   /** 推論タイムアウト(ms) */
   timeoutMs: number;
+  /** リダイレクト許可の確信度しきい値(0.0-1.0) */
+  confidenceThreshold: number;
   /** テーマ */
   theme: Theme;
 }
@@ -26,6 +28,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   model: 'gemini-1.5-flash',
   // デフォルトの推論タイムアウト: 15s（要件に明記なしのため合理的な値を採用）
   timeoutMs: 15_000,
+  confidenceThreshold: 0.5,
   theme: 'system',
 };
 

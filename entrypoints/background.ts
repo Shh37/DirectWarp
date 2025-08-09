@@ -5,8 +5,6 @@ export default defineBackground(() => {
   // DirectWarp background: content からのURL解決要求を受けて Gemini を呼び出す
   // 注意: APIキーは一切ログに出力しない
 
-  const MIN_CONFIDENCE = 0.5; // 確信度が低い場合はフォールバック
-
   browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || message.type !== 'directwarp:resolve') return;
     (async () => {
@@ -27,7 +25,8 @@ export default defineBackground(() => {
           timeoutMs: settings.timeoutMs,
         });
 
-        if (result.confidence < MIN_CONFIDENCE) {
+        const threshold = typeof settings.confidenceThreshold === 'number' ? settings.confidenceThreshold : 0.5;
+        if (result.confidence < threshold) {
           sendResponse({ ok: false, error: 'モデルの確信度が低いため中断しました。' });
           return;
         }

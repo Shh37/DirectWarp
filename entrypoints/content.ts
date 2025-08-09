@@ -45,6 +45,13 @@ export default defineContentScript({
       const engine = detectEngine();
 
       const overlay = createOverlay('DirectWarp: 最適なURLを探索中...');
+      let fallbackTimer: number | null = null;
+      const clearFallback = () => {
+        if (fallbackTimer !== null) {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = null;
+        }
+      };
       try {
         const res = (await browser.runtime.sendMessage({
           type: 'directwarp:resolve',
@@ -58,15 +65,53 @@ export default defineContentScript({
         }
 
         const errMsg = (res && (res as any).error) || '解決に失敗しました。検索画面に戻ります。';
-        overlay.setError(`DirectWarp: ${errMsg}`);
-        setTimeout(() => {
+        overlay.setErrorWithActions(`DirectWarp: ${errMsg}`,
+          {
+            primaryLabel: '設定を開く',
+            onPrimary: () => {
+              try {
+                // options ページを開く
+                void (browser.runtime as any).openOptionsPage?.();
+              } catch {}
+              overlay.remove();
+            },
+            secondaryLabel: 'キャンセル',
+            onSecondary: () => {
+              overlay.remove();
+              const fallbackEngine = engine === 'unknown' ? 'google' : engine;
+              window.location.assign(buildSearchUrl(fallbackEngine, query));
+            },
+          },
+        );
+        // 自動フォールバック（2秒後）。ユーザーがボタンを押した場合は remove() 済みで早期遷移。
+        fallbackTimer = window.setTimeout(() => {
+          try { overlay.clearActions(); } catch {}
           overlay.remove();
           const fallbackEngine = engine === 'unknown' ? 'google' : engine;
           window.location.assign(buildSearchUrl(fallbackEngine, query));
         }, 2000);
       } catch (e) {
-        overlay.setError('DirectWarp: エラーが発生しました。2秒後に検索へ戻ります。');
-        setTimeout(() => {
+        overlay.setErrorWithActions('DirectWarp: エラーが発生しました。',
+          {
+            primaryLabel: '設定を開く',
+            onPrimary: () => {
+              try {
+                void (browser.runtime as any).openOptionsPage?.();
+              } catch {}
+              clearFallback();
+              overlay.remove();
+            },
+            secondaryLabel: 'キャンセル',
+            onSecondary: () => {
+              clearFallback();
+              overlay.remove();
+              const fallbackEngine = engine === 'unknown' ? 'google' : engine;
+              window.location.assign(buildSearchUrl(fallbackEngine, query));
+            },
+          },
+        );
+        fallbackTimer = window.setTimeout(() => {
+          try { overlay.clearActions(); } catch {}
           overlay.remove();
           const fallbackEngine = engine === 'unknown' ? 'google' : engine;
           window.location.assign(buildSearchUrl(fallbackEngine, query));

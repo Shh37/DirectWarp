@@ -4,6 +4,16 @@
 export type OverlayHandle = {
   setMessage: (msg: string) => void;
   setError: (msg: string) => void;
+  setErrorWithActions: (
+    msg: string,
+    actions: {
+      primaryLabel: string;
+      onPrimary: () => void;
+      secondaryLabel?: string;
+      onSecondary?: () => void;
+    },
+  ) => void;
+  clearActions: () => void;
   remove: () => void;
 };
 
@@ -61,9 +71,44 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...'): OverlayH
     lineHeight: '1.5',
   } as CSSStyleDeclaration);
 
+   // actions container
+   const actions = document.createElement('div');
+   Object.assign(actions.style, {
+     marginTop: '12px',
+     display: 'flex',
+     gap: '8px',
+     justifyContent: 'flex-end',
+   } as CSSStyleDeclaration);
+
+   const makeBtn = (label: string) => {
+     const btn = document.createElement('button');
+     btn.textContent = label;
+     Object.assign(btn.style, {
+       fontSize: '13px',
+       padding: '6px 10px',
+       borderRadius: '8px',
+       border: `1px solid ${ACCENT}80`,
+       background: 'white',
+       color: '#111827',
+       cursor: 'pointer',
+     } as CSSStyleDeclaration);
+     btn.addEventListener('mouseenter', () => {
+       btn.style.background = `${ACCENT}0D`;
+     });
+     btn.addEventListener('mouseleave', () => {
+       btn.style.background = 'white';
+     });
+     return btn;
+   };
+
+   const clearActions = () => {
+     actions.innerHTML = '';
+   };
+
   row.appendChild(spinner);
   row.appendChild(text);
   card.appendChild(row);
+  card.appendChild(actions);
   root.appendChild(style);
   root.appendChild(card);
   document.documentElement.appendChild(root);
@@ -74,6 +119,8 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...'): OverlayH
       spinner.style.display = 'inline-block';
       card.style.background = 'white';
       (card.style as any).color = '#111827';
+      card.style.border = '';
+      clearActions();
     },
     setError(msg: string) {
       text.textContent = msg;
@@ -81,6 +128,25 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...'): OverlayH
       card.style.background = '#FEF2F2';
       (card.style as any).color = '#991B1B';
       card.style.border = '1px solid #FCA5A5';
+      clearActions();
+    },
+    setErrorWithActions(msg, cfg) {
+      this.setError(msg);
+      clearActions();
+      const primary = makeBtn(cfg.primaryLabel);
+      primary.style.borderColor = ACCENT;
+      primary.style.background = ACCENT;
+      (primary.style as any).color = 'white';
+      primary.onclick = () => cfg.onPrimary();
+      actions.appendChild(primary);
+      if (cfg.secondaryLabel) {
+        const secondary = makeBtn(cfg.secondaryLabel);
+        secondary.onclick = () => cfg.onSecondary && cfg.onSecondary();
+        actions.appendChild(secondary);
+      }
+    },
+    clearActions() {
+      clearActions();
     },
     remove() {
       root.remove();

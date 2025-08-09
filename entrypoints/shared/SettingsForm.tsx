@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getSettings, setSettings, getApiKey, setApiKey, clearApiKey } from '../../lib/storage';
 import { DEFAULT_SETTINGS, ALLOWED_MODELS, type AppSettings, type GeminiModel, type Theme } from '../../lib/settings';
-import { validateApiKey, validateCandidateCount, validateModel, validateTheme, validateTimeoutMs, validateTrigger, normalizeSettings } from '../../lib/validator';
+import { validateApiKey, validateCandidateCount, validateModel, validateTheme, validateTimeoutMs, validateTrigger, normalizeSettings, validateConfidenceThreshold } from '../../lib/validator';
 
 type FieldErrors = Partial<Record<'apiKey' | keyof AppSettings, string>>;
 
@@ -16,6 +16,7 @@ export default function SettingsForm() {
   const [candidateCount, setCandidateCount] = useState<number>(DEFAULT_SETTINGS.candidateCount);
   const [model, setModel] = useState<GeminiModel>(DEFAULT_SETTINGS.model);
   const [timeoutMs, setTimeoutMs] = useState<number>(DEFAULT_SETTINGS.timeoutMs);
+  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(DEFAULT_SETTINGS.confidenceThreshold);
   const [theme, setTheme] = useState<Theme>(DEFAULT_SETTINGS.theme);
 
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -30,6 +31,7 @@ export default function SettingsForm() {
         setCandidateCount(s.candidateCount);
         setModel(s.model);
         setTimeoutMs(s.timeoutMs);
+        setConfidenceThreshold(s.confidenceThreshold);
         setTheme(s.theme);
         setApiKeyState(k ?? '');
       } finally {
@@ -44,25 +46,27 @@ export default function SettingsForm() {
     const v2 = validateCandidateCount(candidateCount);
     const v3 = validateModel(model);
     const v4 = validateTimeoutMs(timeoutMs);
-    const v5 = validateTheme(theme);
-    const v6 = apiKey ? validateApiKey(apiKey) : { ok: true as const, value: '' };
+    const v5 = validateConfidenceThreshold(confidenceThreshold);
+    const v6 = validateTheme(theme);
+    const v7 = apiKey ? validateApiKey(apiKey) : { ok: true as const, value: '' };
     const e: FieldErrors = {};
     if (!v1.ok) e.trigger = v1.error;
     if (!v2.ok) e.candidateCount = v2.error;
     if (!v3.ok) e.model = v3.error;
     if (!v4.ok) e.timeoutMs = v4.error;
-    if (!v5.ok) e.theme = v5.error;
-    if (!v6.ok) e.apiKey = v6.error;
+    if (!v5.ok) e.confidenceThreshold = v5.error as any;
+    if (!v6.ok) e.theme = v6.error;
+    if (!v7.ok) e.apiKey = v7.error;
     setErrors(e);
     return Object.keys(e).length === 0;
-  }, [trigger, candidateCount, model, timeoutMs, theme, apiKey, loading, saving]);
+  }, [trigger, candidateCount, model, timeoutMs, confidenceThreshold, theme, apiKey, loading, saving]);
 
   async function handleSave() {
     setSaving(true);
     setMessage('');
     try {
       // validate
-      const normalized = normalizeSettings({ trigger, candidateCount, model, timeoutMs, theme });
+      const normalized = normalizeSettings({ trigger, candidateCount, model, timeoutMs, confidenceThreshold, theme });
       if (!normalized.ok) {
         setErrors({ general: normalized.error } as any);
         return;
@@ -138,6 +142,19 @@ export default function SettingsForm() {
               onChange={(e) => setTimeoutMs(Number(e.target.value))}
             />
             {errors.timeoutMs && <span style={{ color: '#B91C1C' }}>{errors.timeoutMs}</span>}
+          </label>
+
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span>確信度しきい値 (0.0 - 1.0)</span>
+            <input
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              value={confidenceThreshold}
+              onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
+            />
+            {errors.confidenceThreshold && <span style={{ color: '#B91C1C' }}>{errors.confidenceThreshold}</span>}
           </label>
 
           <label style={{ display: 'grid', gap: 6 }}>

@@ -32,6 +32,14 @@ export function validateTimeoutMs(input: unknown): ValidationResult<number> {
   return { ok: true, value: n };
 }
 
+export function validateConfidenceThreshold(input: unknown): ValidationResult<number> {
+  const n = Number(input);
+  if (!Number.isFinite(n)) return { ok: false, error: 'しきい値は数値である必要があります。' };
+  if (n < 0 || n > 1) return { ok: false, error: 'しきい値は0.0〜1.0の範囲で指定してください。' };
+  // 小数許容
+  return { ok: true, value: n };
+}
+
 export function validateModel(input: unknown): ValidationResult<GeminiModel> {
   if (typeof input !== 'string') return { ok: false, error: 'モデルは文字列である必要があります。' };
   if (!ALLOWED_MODELS.includes(input as GeminiModel)) {
@@ -68,6 +76,9 @@ export function normalizeSettings(partial: Partial<AppSettings>): ValidationResu
   const tm = validateTimeoutMs(merged.timeoutMs);
   if (!tm.ok) return tm as ValidationResult<AppSettings>;
 
+  const ct = validateConfidenceThreshold(merged.confidenceThreshold);
+  if (!ct.ok) return ct as ValidationResult<AppSettings>;
+
   const th = validateTheme(merged.theme);
   if (!th.ok) return th as ValidationResult<AppSettings>;
 
@@ -78,6 +89,7 @@ export function normalizeSettings(partial: Partial<AppSettings>): ValidationResu
       candidateCount: c.value,
       model: m.value,
       timeoutMs: tm.value,
+      confidenceThreshold: ct.value,
       theme: th.value,
     },
   };
