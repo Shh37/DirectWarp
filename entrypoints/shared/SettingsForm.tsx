@@ -28,6 +28,11 @@ export default function SettingsForm() {
     fontSize: 14,
     borderRadius: 8,
   };
+  // セクション名（ラベル）の左寄せ・やや大きめ
+  const titleStyle: React.CSSProperties = {
+    textAlign: 'left',
+    fontSize: 15,
+  };
 
   useEffect(() => {
     (async () => {
@@ -93,7 +98,7 @@ export default function SettingsForm() {
 
   return (
     <div style={{ minWidth: 320 }}>
-      <h2 style={{ marginBottom: 12 }}>DirectWarp 設定</h2>
+      <h2 style={{ margin: '0 0 12px', textAlign: 'center', fontSize: 20 }}>DirectWarp 設定</h2>
 
       {loading ? (
         <div>読み込み中...</div>
@@ -106,7 +111,7 @@ export default function SettingsForm() {
           style={{ display: 'grid', gap: 12 }}
         >
           <label style={{ display: 'grid', gap: 6 }}>
-            <span>トリガー文字列（先頭一致）</span>
+            <span style={titleStyle}>トリガー文字列（先頭一致）</span>
             <input
               value={trigger}
               onChange={(e) => setTrigger(e.target.value)}
@@ -117,7 +122,7 @@ export default function SettingsForm() {
           </label>
 
           <label style={{ display: 'grid', gap: 6 }}>
-            <span>候補数 N</span>
+            <span style={titleStyle}>候補数 N</span>
             <select
               value={String(candidateCount)}
               onChange={(e) => setCandidateCount(Number(e.target.value))}
@@ -131,7 +136,7 @@ export default function SettingsForm() {
           </label>
 
           <label style={{ display: 'grid', gap: 6 }}>
-            <span>モデル</span>
+            <span style={titleStyle}>モデル</span>
             <select value={model} onChange={(e) => setModel(e.target.value as GeminiModel)} style={controlStyle}>
               {ALLOWED_MODELS.map((m) => (
                 <option key={m} value={m}>{m}</option>
@@ -141,7 +146,7 @@ export default function SettingsForm() {
           </label>
 
           <label style={{ display: 'grid', gap: 6 }}>
-            <span>タイムアウト (ms)</span>
+            <span style={titleStyle}>タイムアウト (ms)</span>
             <input
               type="number"
               min={1000}
@@ -155,7 +160,7 @@ export default function SettingsForm() {
           </label>
 
           <label style={{ display: 'grid', gap: 6 }}>
-            <span>確信度しきい値 (0.0 - 1.0)</span>
+            <span style={titleStyle}>確信度しきい値 (0.0 - 1.0)</span>
             <input
               type="number"
               min={0}
@@ -169,7 +174,7 @@ export default function SettingsForm() {
           </label>
 
           <label style={{ display: 'grid', gap: 6 }}>
-            <span>テーマ</span>
+            <span style={titleStyle}>テーマ</span>
             <select value={theme} onChange={(e) => setTheme(e.target.value as Theme)} style={controlStyle}>
               <option value="system">system</option>
               <option value="light">light</option>
@@ -179,7 +184,7 @@ export default function SettingsForm() {
           </label>
 
           <label style={{ display: 'grid', gap: 6 }}>
-            <span>Gemini APIキー</span>
+            <span style={titleStyle}>Gemini APIキー</span>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 type={showKey ? 'text' : 'password'}
@@ -195,8 +200,12 @@ export default function SettingsForm() {
             {errors.apiKey && <span style={{ color: '#B91C1C' }}>{errors.apiKey}</span>}
           </label>
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button type="submit" disabled={!canSave || saving} style={{ background: '#6B818E', color: 'white', padding: '8px 12px', borderRadius: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', margin: '12px 0' }}>
+            <button
+              type="submit"
+              disabled={!canSave || saving}
+              style={{ background: '#6B818E', color: 'white', padding: '12px 24px', borderRadius: 8, minWidth: 180, fontSize: 15 }}
+            >
               {saving ? '保存中...' : '保存'}
             </button>
             {message && <span>{message}</span>}
