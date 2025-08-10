@@ -22,6 +22,13 @@ export default function SettingsForm() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState<string>('');
 
+  // 入力系コントロールの共通スタイル（色は変更しない）
+  const controlStyle: React.CSSProperties = {
+    padding: '10px 12px',
+    fontSize: 14,
+    borderRadius: 8,
+  };
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -104,6 +111,7 @@ export default function SettingsForm() {
               value={trigger}
               onChange={(e) => setTrigger(e.target.value)}
               placeholder="/d"
+              style={controlStyle}
             />
             {errors.trigger && <span style={{ color: '#B91C1C' }}>{errors.trigger}</span>}
           </label>
@@ -113,6 +121,7 @@ export default function SettingsForm() {
             <select
               value={String(candidateCount)}
               onChange={(e) => setCandidateCount(Number(e.target.value))}
+              style={controlStyle}
             >
               {[3, 5, 10].map((n) => (
                 <option key={n} value={n}>{n}</option>
@@ -123,7 +132,7 @@ export default function SettingsForm() {
 
           <label style={{ display: 'grid', gap: 6 }}>
             <span>モデル</span>
-            <select value={model} onChange={(e) => setModel(e.target.value as GeminiModel)}>
+            <select value={model} onChange={(e) => setModel(e.target.value as GeminiModel)} style={controlStyle}>
               {ALLOWED_MODELS.map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
@@ -140,6 +149,7 @@ export default function SettingsForm() {
               step={500}
               value={timeoutMs}
               onChange={(e) => setTimeoutMs(Number(e.target.value))}
+              style={controlStyle}
             />
             {errors.timeoutMs && <span style={{ color: '#B91C1C' }}>{errors.timeoutMs}</span>}
           </label>
@@ -153,13 +163,14 @@ export default function SettingsForm() {
               step={0.05}
               value={confidenceThreshold}
               onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
+              style={controlStyle}
             />
             {errors.confidenceThreshold && <span style={{ color: '#B91C1C' }}>{errors.confidenceThreshold}</span>}
           </label>
 
           <label style={{ display: 'grid', gap: 6 }}>
             <span>テーマ</span>
-            <select value={theme} onChange={(e) => setTheme(e.target.value as Theme)}>
+            <select value={theme} onChange={(e) => setTheme(e.target.value as Theme)} style={controlStyle}>
               <option value="system">system</option>
               <option value="light">light</option>
               <option value="dark">dark</option>
@@ -175,7 +186,7 @@ export default function SettingsForm() {
                 value={apiKey}
                 onChange={(e) => setApiKeyState(e.target.value)}
                 placeholder="AIza..."
-                style={{ flex: 1 }}
+                style={{ ...controlStyle, flex: 1 }}
               />
               <button type="button" onClick={() => setShowKey((v) => !v)}>
                 {showKey ? '隠す' : '表示'}

@@ -18,8 +18,9 @@ export type OverlayHandle = {
 };
 
 const ACCENT = '#6B818E';
+type ThemeMode = 'system' | 'light' | 'dark';
 
-export function createOverlay(initialMsg = 'DirectWarp: 実行中...'): OverlayHandle {
+export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?: { theme?: ThemeMode }): OverlayHandle {
   const root = document.createElement('div');
   root.id = 'directwarp-overlay-root';
   Object.assign(root.style, {
@@ -80,6 +81,10 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...'): OverlayH
      justifyContent: 'flex-end',
    } as CSSStyleDeclaration);
 
+   const theme: ThemeMode = options?.theme ?? 'system';
+   const prefersDark = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+   const isDark = theme === 'dark' || (theme === 'system' && prefersDark);
+
    const makeBtn = (label: string) => {
      const btn = document.createElement('button');
      btn.textContent = label;
@@ -88,15 +93,15 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...'): OverlayH
        padding: '6px 10px',
        borderRadius: '8px',
        border: `1px solid ${ACCENT}80`,
-       background: 'white',
-       color: '#111827',
+       background: isDark ? '#1F2937' : 'white',
+       color: isDark ? '#E5E7EB' : '#111827',
        cursor: 'pointer',
      } as CSSStyleDeclaration);
      btn.addEventListener('mouseenter', () => {
-       btn.style.background = `${ACCENT}0D`;
+       btn.style.background = isDark ? 'rgba(255,255,255,0.06)' : `${ACCENT}0D`;
      });
      btn.addEventListener('mouseleave', () => {
-       btn.style.background = 'white';
+       btn.style.background = isDark ? '#1F2937' : 'white';
      });
      return btn;
    };
@@ -113,21 +118,44 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...'): OverlayH
   root.appendChild(card);
   document.documentElement.appendChild(root);
 
+  function applyNormal() {
+    if (isDark) {
+      card.style.background = '#111827';
+      (card.style as any).color = '#F3F4F6';
+      card.style.border = '';
+    } else {
+      card.style.background = 'white';
+      (card.style as any).color = '#111827';
+      card.style.border = '';
+    }
+  }
+
+  function applyError() {
+    if (isDark) {
+      card.style.background = '#3F1D1D';
+      (card.style as any).color = '#FCA5A5';
+      card.style.border = '1px solid #7F1D1D';
+    } else {
+      card.style.background = '#FEF2F2';
+      (card.style as any).color = '#991B1B';
+      card.style.border = '1px solid #FCA5A5';
+    }
+  }
+
+  // 初期表示時にもテーマを反映
+  applyNormal();
+
   return {
     setMessage(msg: string) {
       text.textContent = msg;
       spinner.style.display = 'inline-block';
-      card.style.background = 'white';
-      (card.style as any).color = '#111827';
-      card.style.border = '';
+      applyNormal();
       clearActions();
     },
     setError(msg: string) {
       text.textContent = msg;
       spinner.style.display = 'none';
-      card.style.background = '#FEF2F2';
-      (card.style as any).color = '#991B1B';
-      card.style.border = '1px solid #FCA5A5';
+      applyError();
       clearActions();
     },
     setErrorWithActions(msg, cfg) {

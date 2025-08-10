@@ -44,7 +44,7 @@ export default defineContentScript({
       const query = trimmed.slice(trigger.length).trim();
       const engine = detectEngine();
 
-      const overlay = createOverlay('DirectWarp: 最適なURLを探索中...');
+      const overlay = createOverlay('DirectWarp: 最適なURLを探索中...', { theme: settings.theme });
       let fallbackTimer: number | null = null;
       const clearFallback = () => {
         if (fallbackTimer !== null) {
