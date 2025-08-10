@@ -3,8 +3,12 @@
 
 export type Theme = 'system' | 'light' | 'dark';
 
-// MVPでは Gemini 固定
-export const ALLOWED_MODELS = ['gemini-1.5-flash'] as const;
+// MVPではプロバイダはGemini固定だが、モデルは複数選択可能にする
+export const ALLOWED_MODELS = [
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-1.5-pro',
+] as const;
 export type GeminiModel = typeof ALLOWED_MODELS[number];
 
 export interface AppSettings {

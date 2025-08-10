@@ -75,7 +75,7 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?:
    // actions container
    const actions = document.createElement('div');
    Object.assign(actions.style, {
-     marginTop: '12px',
+     marginTop: '0',
      display: 'flex',
      gap: '8px',
      justifyContent: 'flex-end',
@@ -108,6 +108,7 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?:
 
    const clearActions = () => {
      actions.innerHTML = '';
+     actions.style.marginTop = '0';
    };
 
   row.appendChild(spinner);
@@ -161,6 +162,7 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?:
     setErrorWithActions(msg, cfg) {
       this.setError(msg);
       clearActions();
+      actions.style.marginTop = '12px';
       const primary = makeBtn(cfg.primaryLabel);
       primary.style.borderColor = ACCENT;
       primary.style.background = ACCENT;
