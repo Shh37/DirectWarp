@@ -1,8 +1,10 @@
-import { getSettings, getApiKey } from '../lib/storage';
-import { getBestUrl } from '../lib/apiClients/gemini';
+import { getSettings, getApiKey, getCustomSearchApiKey, getCustomSearchCx } from '../lib/storage';
+import { selectBestUrlFromCandidates } from '../lib/apiClients/gemini';
+import { searchTopUrls } from '../lib/apiClients/customSearch';
 
 export default defineBackground(() => {
-  // DirectWarp background: content からのURL解決要求を受けて Gemini を呼び出す
+  // DirectWarp background: content からのURL解決要求を受けて
+  // Custom Search で候補URLを取得 → Gemini で最適1件を選定
   // 注意: APIキーは一切ログに出力しない
 
   browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -11,17 +13,37 @@ export default defineBackground(() => {
       try {
         const { query } = message as { type: string; query: string };
         const settings = await getSettings();
-        const apiKey = await getApiKey();
-        if (!apiKey) {
+        const geminiKey = await getApiKey();
+        const csKey = await getCustomSearchApiKey();
+        const csCx = await getCustomSearchCx();
+        if (!geminiKey) {
           sendResponse({ ok: false, error: 'Gemini の APIキーが設定されていません。' });
           return;
         }
+        if (!csKey || !csCx) {
+          sendResponse({ ok: false, error: 'Custom Search の APIキーまたは CX が設定されていません。' });
+          return;
+        }
 
-        const result = await getBestUrl({
-          apiKey,
+        // 1) Custom Search で上位N件の候補URLを取得
+        const items = await searchTopUrls({
+          apiKey: csKey,
+          cx: csCx,
+          query,
+          num: settings.candidateCount,
+          timeoutMs: settings.timeoutMs,
+        });
+        if (!items.length) {
+          sendResponse({ ok: false, error: 'Custom Search で候補が見つかりませんでした。' });
+          return;
+        }
+
+        // 2) Gemini で候補群から最適な1件を選定
+        const result = await selectBestUrlFromCandidates({
+          apiKey: geminiKey,
           model: settings.model,
           query,
-          candidateCount: settings.candidateCount,
+          candidates: items,
           timeoutMs: settings.timeoutMs,
         });
 

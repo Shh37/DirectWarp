@@ -14,7 +14,7 @@ export type GeminiModel = typeof ALLOWED_MODELS[number];
 export interface AppSettings {
   /** 検索トリガー（先頭一致）。例: /d, !d, #go */
   trigger: string;
-  /** Gemini へ投げる候補数（N）。例: 3/5/10 */
+  /** 候補数（N）。Custom Search API の取得件数。例: 1〜10 */
   candidateCount: number;
   /** 使用モデル（MVPは gemini-1.5-flash のみ） */
   model: GeminiModel;
@@ -28,7 +28,7 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   trigger: '/d',
-  candidateCount: 3,
+  candidateCount: 5,
   model: 'gemini-1.5-flash',
   // デフォルトの推論タイムアウト: 15s（要件に明記なしのため合理的な値を採用）
   timeoutMs: 15_000,
@@ -39,3 +39,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
 // storage.local のキー名
 export const SETTINGS_KEY = 'app:settings';
 export const API_KEY_KEY = 'secret:gemini_api_key';
+export const CUSTOM_SEARCH_API_KEY_KEY = 'secret:custom_search_api_key';
+export const CUSTOM_SEARCH_CX_KEY = 'secret:custom_search_cx';

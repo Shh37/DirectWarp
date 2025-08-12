@@ -9,6 +9,7 @@ export default defineConfig({
       'https://www.google.com/*',
       'https://www.bing.com/*',
       'https://generativelanguage.googleapis.com/*',
+      'https://www.googleapis.com/*',
     ],
     icons: {
       '16': 'icon/16.png',

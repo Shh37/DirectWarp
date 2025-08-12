@@ -2,7 +2,7 @@
 // browser.storage.local を用いた安全な保存/取得のラッパー。
 // 注意: APIキーはログに出力しない。例外時もキーを含めない。
 
-import { type AppSettings, DEFAULT_SETTINGS, SETTINGS_KEY, API_KEY_KEY } from './settings';
+import { type AppSettings, DEFAULT_SETTINGS, SETTINGS_KEY, API_KEY_KEY, CUSTOM_SEARCH_API_KEY_KEY, CUSTOM_SEARCH_CX_KEY } from './settings';
 
 function mergeSettings(partial?: Partial<AppSettings> | null): AppSettings {
   return { ...DEFAULT_SETTINGS, ...(partial ?? {}) };
@@ -39,4 +39,33 @@ export function maskKey(key: string | null | undefined): string {
   const len = key.length;
   if (len <= 4) return '••••';
   return `${key.slice(0, 2)}•••${key.slice(-2)}`;
+}
+
+// --- Custom Search API ---
+export async function getCustomSearchApiKey(): Promise<string | null> {
+  const obj = await browser.storage.local.get(CUSTOM_SEARCH_API_KEY_KEY);
+  const key = (obj?.[CUSTOM_SEARCH_API_KEY_KEY] ?? null) as string | null;
+  return key ? String(key) : null;
+}
+
+export async function setCustomSearchApiKey(key: string): Promise<void> {
+  await browser.storage.local.set({ [CUSTOM_SEARCH_API_KEY_KEY]: key });
+}
+
+export async function clearCustomSearchApiKey(): Promise<void> {
+  await browser.storage.local.remove(CUSTOM_SEARCH_API_KEY_KEY);
+}
+
+export async function getCustomSearchCx(): Promise<string | null> {
+  const obj = await browser.storage.local.get(CUSTOM_SEARCH_CX_KEY);
+  const cx = (obj?.[CUSTOM_SEARCH_CX_KEY] ?? null) as string | null;
+  return cx ? String(cx) : null;
+}
+
+export async function setCustomSearchCx(cx: string): Promise<void> {
+  await browser.storage.local.set({ [CUSTOM_SEARCH_CX_KEY]: cx });
+}
+
+export async function clearCustomSearchCx(): Promise<void> {
+  await browser.storage.local.remove(CUSTOM_SEARCH_CX_KEY);
 }

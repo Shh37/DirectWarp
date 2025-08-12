@@ -1,9 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getSettings, setSettings, getApiKey, setApiKey, clearApiKey } from '../../lib/storage';
+import {
+  getSettings,
+  setSettings,
+  getApiKey,
+  setApiKey,
+  clearApiKey,
+  getCustomSearchApiKey,
+  setCustomSearchApiKey,
+  clearCustomSearchApiKey,
+  getCustomSearchCx,
+  setCustomSearchCx,
+  clearCustomSearchCx,
+} from '../../lib/storage';
 import { DEFAULT_SETTINGS, ALLOWED_MODELS, type AppSettings, type GeminiModel, type Theme } from '../../lib/settings';
 import { validateApiKey, validateCandidateCount, validateModel, validateTheme, validateTimeoutMs, validateTrigger, normalizeSettings, validateConfidenceThreshold } from '../../lib/validator';
 
-type FieldErrors = Partial<Record<'apiKey' | keyof AppSettings, string>>;
+type FieldErrors = Partial<Record<'apiKey' | 'csApiKey' | 'csCx' | keyof AppSettings, string>>;
 
 export default function SettingsForm() {
   const [loading, setLoading] = useState(true);
@@ -11,6 +23,9 @@ export default function SettingsForm() {
 
   const [apiKey, setApiKeyState] = useState('');
   const [showKey, setShowKey] = useState(false);
+  const [csApiKey, setCsApiKey] = useState('');
+  const [showCsKey, setShowCsKey] = useState(false);
+  const [csCx, setCsCx] = useState('');
 
   const [trigger, setTrigger] = useState(DEFAULT_SETTINGS.trigger);
   const [candidateCount, setCandidateCount] = useState<number>(DEFAULT_SETTINGS.candidateCount);
@@ -38,7 +53,12 @@ export default function SettingsForm() {
     (async () => {
       setLoading(true);
       try {
-        const [s, k] = await Promise.all([getSettings(), getApiKey()]);
+        const [s, k, csk, cscx] = await Promise.all([
+          getSettings(),
+          getApiKey(),
+          getCustomSearchApiKey(),
+          getCustomSearchCx(),
+        ]);
         setTrigger(s.trigger);
         setCandidateCount(s.candidateCount);
         setModel(s.model);
@@ -46,6 +66,8 @@ export default function SettingsForm() {
         setConfidenceThreshold(s.confidenceThreshold);
         setTheme(s.theme);
         setApiKeyState(k ?? '');
+        setCsApiKey(csk ?? '');
+        setCsCx(cscx ?? '');
       } finally {
         setLoading(false);
       }
@@ -61,6 +83,13 @@ export default function SettingsForm() {
     const v5 = validateConfidenceThreshold(confidenceThreshold);
     const v6 = validateTheme(theme);
     const v7 = apiKey ? validateApiKey(apiKey) : { ok: true as const, value: '' };
+    const v8 = csApiKey ? validateApiKey(csApiKey) : { ok: true as const, value: '' };
+    // CX は形式が固定ではないため、入力がある場合は最小限の非空チェックのみ（空/空白はエラー）
+    const v9 = (() => {
+      if (typeof csCx !== 'string') return { ok: false as const, error: 'CXは文字列である必要があります。' };
+      if (!csCx.trim()) return { ok: true as const, value: '' }; // 未入力は許容（使用時にbackground側で検知）
+      return { ok: true as const, value: csCx.trim() };
+    })();
     const e: FieldErrors = {};
     if (!v1.ok) e.trigger = v1.error;
     if (!v2.ok) e.candidateCount = v2.error;
@@ -69,9 +98,11 @@ export default function SettingsForm() {
     if (!v5.ok) e.confidenceThreshold = v5.error as any;
     if (!v6.ok) e.theme = v6.error;
     if (!v7.ok) e.apiKey = v7.error;
+    if (!v8.ok) e.csApiKey = v8.error;
+    if (!v9.ok) e.csCx = v9.error;
     setErrors(e);
     return Object.keys(e).length === 0;
-  }, [trigger, candidateCount, model, timeoutMs, confidenceThreshold, theme, apiKey, loading, saving]);
+  }, [trigger, candidateCount, model, timeoutMs, confidenceThreshold, theme, apiKey, csApiKey, csCx, loading, saving]);
 
   async function handleSave() {
     setSaving(true);
@@ -86,6 +117,8 @@ export default function SettingsForm() {
       await Promise.all([
         setSettings(normalized.value),
         apiKey ? setApiKey(apiKey) : clearApiKey(),
+        csApiKey ? setCustomSearchApiKey(csApiKey) : clearCustomSearchApiKey(),
+        csCx ? setCustomSearchCx(csCx) : clearCustomSearchCx(),
       ]);
       setMessage('保存しました。');
       setTimeout(() => setMessage(''), 2000);
@@ -122,16 +155,16 @@ export default function SettingsForm() {
           </label>
 
           <label style={{ display: 'grid', gap: 6 }}>
-            <span style={titleStyle}>候補数 N</span>
-            <select
-              value={String(candidateCount)}
+            <span style={titleStyle}>候補数 N: {candidateCount}</span>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              step={1}
+              value={candidateCount}
               onChange={(e) => setCandidateCount(Number(e.target.value))}
-              style={controlStyle}
-            >
-              {[3, 5, 10].map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
+              style={{ width: '100%' }}
+            />
             {errors.candidateCount && <span style={{ color: '#B91C1C' }}>{errors.candidateCount}</span>}
           </label>
 
@@ -198,6 +231,34 @@ export default function SettingsForm() {
               </button>
             </div>
             {errors.apiKey && <span style={{ color: '#B91C1C' }}>{errors.apiKey}</span>}
+          </label>
+
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={titleStyle}>Custom Search APIキー</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type={showCsKey ? 'text' : 'password'}
+                value={csApiKey}
+                onChange={(e) => setCsApiKey(e.target.value)}
+                placeholder="AIza..."
+                style={{ ...controlStyle, flex: 1 }}
+              />
+              <button type="button" onClick={() => setShowCsKey((v) => !v)}>
+                {showCsKey ? '隠す' : '表示'}
+              </button>
+            </div>
+            {errors.csApiKey && <span style={{ color: '#B91C1C' }}>{errors.csApiKey}</span>}
+          </label>
+
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={titleStyle}>Custom Search CX（検索エンジンID）</span>
+            <input
+              value={csCx}
+              onChange={(e) => setCsCx(e.target.value)}
+              placeholder="xxxxxxxxxxxxxxxxx:yyyyyyyyyyy"
+              style={controlStyle}
+            />
+            {errors.csCx && <span style={{ color: '#B91C1C' }}>{errors.csCx}</span>}
           </label>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', margin: '12px 0' }}>
