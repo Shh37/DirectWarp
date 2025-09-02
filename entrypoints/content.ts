@@ -59,7 +59,7 @@ export default defineContentScript({
         })) as ResolveResponse;
 
         if (res && (res as any).ok === true && typeof (res as any).url === 'string') {
-          overlay.setMessage('DirectWarp: ジャンプします...');
+          overlay.setMessage('DirectWarp: ワープします...');
           window.location.assign((res as any).url);
           return;
         }
