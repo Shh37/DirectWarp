@@ -27,7 +27,8 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?:
     position: 'fixed',
     inset: '0',
     zIndex: '2147483647',
-    background: 'rgba(0,0,0,0.35)',
+    background: 'rgba(0,0,0,0.25)',
+    backdropFilter: 'blur(4px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -35,14 +36,16 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?:
 
   const card = document.createElement('div');
   Object.assign(card.style, {
-    background: 'white',
+    background: 'rgba(255, 255, 255, 0.9)',
     color: '#111827',
-    minWidth: '280px',
+    minWidth: '360px',
     maxWidth: '90vw',
-    padding: '16px 20px',
-    borderRadius: '14px',
+    padding: '24px 28px',
+    borderRadius: '16px',
     boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
     fontFamily: `ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`,
+    backdropFilter: 'blur(8px)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
   } as CSSStyleDeclaration);
 
   const row = document.createElement('div');
@@ -68,8 +71,9 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?:
   const text = document.createElement('div');
   text.textContent = initialMsg;
   Object.assign(text.style, {
-    fontSize: '14px',
-    lineHeight: '1.5',
+    fontSize: '16px',
+    lineHeight: '1.6',
+    fontWeight: '500',
   } as CSSStyleDeclaration);
 
    // actions container
