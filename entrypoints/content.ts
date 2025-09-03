@@ -37,11 +37,20 @@ export default defineContentScript({
       const raw = getQueryParam('q');
       if (!raw) return;
 
+      let query: string | null = null;
       const trimmed = raw.trim();
-      if (!trimmed.startsWith(trigger)) return;
-
+      
+      if (trimmed.startsWith(trigger)) {
+        // 先頭にトリガーがある場合
+        query = trimmed.slice(trigger.length).trim();
+      } else if (trimmed.endsWith(trigger)) {
+        // 最後にトリガーがある場合
+        query = trimmed.slice(0, -trigger.length).trim();
+      }
+      
+      if (query === null) return;
+      
       processed = true;
-      const query = trimmed.slice(trigger.length).trim();
       const engine = detectEngine();
 
       const overlay = createOverlay('DirectWarp: 最適なURLを探索中...', { theme: settings.theme });
