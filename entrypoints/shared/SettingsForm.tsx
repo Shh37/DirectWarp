@@ -178,33 +178,51 @@ export default function SettingsForm() {
             {errors.model && <span style={{ color: '#B91C1C' }}>{errors.model}</span>}
           </label>
 
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={titleStyle}>タイムアウト (ms)</span>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={titleStyle}>タイムアウト: {timeoutMs / 1000} 秒</span>
+              <span style={{ fontSize: 14, color: '#6B7280' }}>{timeoutMs.toLocaleString()} ミリ秒</span>
+            </div>
             <input
-              type="number"
+              type="range"
               min={1000}
-              max={120000}
-              step={500}
+              max={30000}
+              step={1000}
               value={timeoutMs}
               onChange={(e) => setTimeoutMs(Number(e.target.value))}
-              style={controlStyle}
+              style={{ width: '100%' }}
             />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#6B7280' }}>
+              <span>1秒</span>
+              <span>30秒</span>
+            </div>
             {errors.timeoutMs && <span style={{ color: '#B91C1C' }}>{errors.timeoutMs}</span>}
-          </label>
+          </div>
 
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={titleStyle}>確信度しきい値 (0.0 - 1.0)</span>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={titleStyle}>確信度しきい値: {(confidenceThreshold * 100).toFixed(0)}%</span>
+            </div>
+            {confidenceThreshold < 0.5 && (
+              <div style={{ fontSize: 12, color: '#B45309', marginTop: -4 }}>
+                低い値を設定すると、関連性の低い結果にリダイレクトされる可能性があります
+              </div>
+            )}
             <input
-              type="number"
-              min={0}
+              type="range"
+              min={0.1}
               max={1}
-              step={0.05}
+              step={0.1}
               value={confidenceThreshold}
               onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
-              style={controlStyle}
+              style={{ width: '100%' }}
             />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#6B7280' }}>
+              <span>10%</span>
+              <span>100%</span>
+            </div>
             {errors.confidenceThreshold && <span style={{ color: '#B91C1C' }}>{errors.confidenceThreshold}</span>}
-          </label>
+          </div>
 
           <label style={{ display: 'grid', gap: 6 }}>
             <span style={titleStyle}>テーマ</span>
