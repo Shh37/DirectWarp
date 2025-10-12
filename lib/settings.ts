@@ -3,11 +3,11 @@
 
 export type Theme = 'system' | 'light' | 'dark';
 
-// MVPではプロバイダはGemini固定だが、モデルは複数選択可能にする
+// サポートするGeminiモデル一覧 (2.x系に更新)
 export const ALLOWED_MODELS = [
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-8b',
-  'gemini-1.5-pro',
+  'gemini-2.0-flash',
+  'gemini-2.5-flash',
+  'gemini-2.0-pro',
 ] as const;
 export type GeminiModel = typeof ALLOWED_MODELS[number];
 
@@ -29,7 +29,7 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   trigger: '/d',
   candidateCount: 5,
-  model: 'gemini-1.5-flash',
+  model: 'gemini-2.0-flash',
   // デフォルトの推論タイムアウト: 15s（要件に明記なしのため合理的な値を採用）
   timeoutMs: 15_000,
   confidenceThreshold: 0.5,
