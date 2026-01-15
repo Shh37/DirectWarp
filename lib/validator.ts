@@ -79,6 +79,9 @@ export function normalizeSettings(partial: Partial<AppSettings>): ValidationResu
   const ct = validateConfidenceThreshold(merged.confidenceThreshold);
   if (!ct.ok) return ct as ValidationResult<AppSettings>;
 
+  const pct = validateConfidenceThreshold(merged.predictionConfidenceThreshold);
+  if (!pct.ok) return pct as ValidationResult<AppSettings>;
+
   const th = validateTheme(merged.theme);
   if (!th.ok) return th as ValidationResult<AppSettings>;
 
@@ -90,6 +93,7 @@ export function normalizeSettings(partial: Partial<AppSettings>): ValidationResu
       model: m.value,
       timeoutMs: tm.value,
       confidenceThreshold: ct.value,
+      predictionConfidenceThreshold: pct.value,
       theme: th.value,
     },
   };

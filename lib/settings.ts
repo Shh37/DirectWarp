@@ -22,6 +22,8 @@ export interface AppSettings {
   timeoutMs: number;
   /** リダイレクト許可の確信度しきい値(0.0-1.0) */
   confidenceThreshold: number;
+  /** 予測早期リターンの確信度しきい値(0.0-1.0) */
+  predictionConfidenceThreshold: number;
   /** テーマ */
   theme: Theme;
 }
@@ -33,6 +35,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // デフォルトの推論タイムアウト: 15s（要件に明記なしのため合理的な値を採用）
   timeoutMs: 15_000,
   confidenceThreshold: 0.5,
+  predictionConfidenceThreshold: 0.85,
   theme: 'system',
 };
 

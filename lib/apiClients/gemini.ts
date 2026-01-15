@@ -98,6 +98,77 @@ export async function getBestUrl(req: GeminiUrlRequest): Promise<GeminiUrlRespon
   return withTimeout(fetchPromise, req.timeoutMs);
 }
 
+// --- 予測的なURL推論（候補なしでクエリのみから） ---
+export interface GeminiPredictionRequest {
+  apiKey: string;
+  model: GeminiModel;
+  query: string;
+  timeoutMs: number;
+}
+
+export async function predictBestUrl(req: GeminiPredictionRequest): Promise<GeminiUrlResponse> {
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${req.model}:generateContent?key=${encodeURIComponent(req.apiKey)}`;
+
+  const prompt = [
+    'あなたは検索アシスタントです。ユーザーのクエリ意図から最も関連性の高いURLを予測してください。',
+    '必ずJSONのみを返し、説明文やコードブロックを含めないこと。',
+    '',
+    '出力形式:',
+    '{"url": string, "confidence": number(0..1)}',
+    '',
+    `ユーザーのクエリ: ${req.query}`,
+  ].join('\n');
+
+  const body = {
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: prompt }],
+      },
+    ],
+  } as const;
+
+  const fetchPromise = fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(async (res) => {
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Gemini API error: ${res.status} ${res.statusText} ${text}`);
+    }
+    const json = await res.json();
+    const candidates = json?.candidates;
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      throw new Error('Gemini: 応答候補が空です');
+    }
+    const parts = candidates[0]?.content?.parts;
+    const text = Array.isArray(parts) ? String(parts[0]?.text ?? '') : '';
+    if (!text) throw new Error('Gemini: 応答テキストが空です');
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      const m = text.match(/\{[\s\S]*\}/);
+      if (!m) throw new Error('Gemini: JSON解析に失敗しました');
+      parsed = JSON.parse(m[0]);
+    }
+
+    const url = (parsed as any)?.url;
+    const confidence = Number((parsed as any)?.confidence);
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+      throw new Error('Gemini: URL形式が不正です');
+    }
+    if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+      throw new Error('Gemini: confidenceが0..1の範囲外です');
+    }
+    return { url, confidence } as GeminiUrlResponse;
+  });
+
+  return withTimeout(fetchPromise, req.timeoutMs);
+}
+
 // --- 候補URL群から1件選定するインターフェース ---
 export interface GeminiSelectionRequest {
   apiKey: string;

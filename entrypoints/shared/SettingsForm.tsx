@@ -32,6 +32,7 @@ export default function SettingsForm() {
   const [model, setModel] = useState<GeminiModel>(DEFAULT_SETTINGS.model);
   const [timeoutMs, setTimeoutMs] = useState<number>(DEFAULT_SETTINGS.timeoutMs);
   const [confidenceThreshold, setConfidenceThreshold] = useState<number>(DEFAULT_SETTINGS.confidenceThreshold);
+  const [predictionConfidenceThreshold, setPredictionConfidenceThreshold] = useState<number>(DEFAULT_SETTINGS.predictionConfidenceThreshold);
   const [theme, setTheme] = useState<Theme>(DEFAULT_SETTINGS.theme);
 
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -64,6 +65,7 @@ export default function SettingsForm() {
         setModel(s.model);
         setTimeoutMs(s.timeoutMs);
         setConfidenceThreshold(s.confidenceThreshold);
+        setPredictionConfidenceThreshold(s.predictionConfidenceThreshold);
         setTheme(s.theme);
         setApiKeyState(k ?? '');
         setCsApiKey(csk ?? '');
@@ -81,11 +83,12 @@ export default function SettingsForm() {
     const v3 = validateModel(model);
     const v4 = validateTimeoutMs(timeoutMs);
     const v5 = validateConfidenceThreshold(confidenceThreshold);
-    const v6 = validateTheme(theme);
-    const v7 = apiKey ? validateApiKey(apiKey) : { ok: true as const, value: '' };
-    const v8 = csApiKey ? validateApiKey(csApiKey) : { ok: true as const, value: '' };
+    const v6 = validateConfidenceThreshold(predictionConfidenceThreshold);
+    const v7 = validateTheme(theme);
+    const v8 = apiKey ? validateApiKey(apiKey) : { ok: true as const, value: '' };
+    const v9 = csApiKey ? validateApiKey(csApiKey) : { ok: true as const, value: '' };
     // CX は形式が固定ではないため、入力がある場合は最小限の非空チェックのみ（空/空白はエラー）
-    const v9 = (() => {
+    const v10 = (() => {
       if (typeof csCx !== 'string') return { ok: false as const, error: 'CXは文字列である必要があります。' };
       if (!csCx.trim()) return { ok: true as const, value: '' }; // 未入力は許容（使用時にbackground側で検知）
       return { ok: true as const, value: csCx.trim() };
@@ -96,20 +99,21 @@ export default function SettingsForm() {
     if (!v3.ok) e.model = v3.error;
     if (!v4.ok) e.timeoutMs = v4.error;
     if (!v5.ok) e.confidenceThreshold = v5.error as any;
-    if (!v6.ok) e.theme = v6.error;
-    if (!v7.ok) e.apiKey = v7.error;
-    if (!v8.ok) e.csApiKey = v8.error;
-    if (!v9.ok) e.csCx = v9.error;
+    if (!v6.ok) e.predictionConfidenceThreshold = v6.error as any;
+    if (!v7.ok) e.theme = v7.error;
+    if (!v8.ok) e.apiKey = v8.error;
+    if (!v9.ok) e.csApiKey = v9.error;
+    if (!v10.ok) e.csCx = v10.error;
     setErrors(e);
     return Object.keys(e).length === 0;
-  }, [trigger, candidateCount, model, timeoutMs, confidenceThreshold, theme, apiKey, csApiKey, csCx, loading, saving]);
+  }, [trigger, candidateCount, model, timeoutMs, confidenceThreshold, predictionConfidenceThreshold, theme, apiKey, csApiKey, csCx, loading, saving]);
 
   async function handleSave() {
     setSaving(true);
     setMessage('');
     try {
       // validate
-      const normalized = normalizeSettings({ trigger, candidateCount, model, timeoutMs, confidenceThreshold, theme });
+      const normalized = normalizeSettings({ trigger, candidateCount, model, timeoutMs, confidenceThreshold, predictionConfidenceThreshold, theme });
       if (!normalized.ok) {
         setErrors({ general: normalized.error } as any);
         return;
@@ -222,6 +226,29 @@ export default function SettingsForm() {
               <span>100%</span>
             </div>
             {errors.confidenceThreshold && <span style={{ color: '#B91C1C' }}>{errors.confidenceThreshold}</span>}
+          </div>
+
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={titleStyle}>予測早期リターンしきい値: {(predictionConfidenceThreshold * 100).toFixed(0)}%</span>
+            </div>
+            <div style={{ fontSize: 12, color: '#6B7280', marginTop: -4 }}>
+              この値以上の確信度で予測結果があれば即時にワープします
+            </div>
+            <input
+              type="range"
+              min={0.1}
+              max={1}
+              step={0.1}
+              value={predictionConfidenceThreshold}
+              onChange={(e) => setPredictionConfidenceThreshold(Number(e.target.value))}
+              style={{ width: '100%' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#6B7280' }}>
+              <span>10%</span>
+              <span>100%</span>
+            </div>
+            {errors.predictionConfidenceThreshold && <span style={{ color: '#B91C1C' }}>{errors.predictionConfidenceThreshold}</span>}
           </div>
 
           <label style={{ display: 'grid', gap: 6 }}>
