@@ -69,7 +69,9 @@ export default defineContentScript({
 
         if (res && (res as any).ok === true && typeof (res as any).url === 'string') {
           overlay.setMessage('DirectWarp: ワープします...');
-          window.location.assign((res as any).url);
+          overlay.startWarpTransition(() => {
+            window.location.assign((res as any).url);
+          });
           return;
         }
 

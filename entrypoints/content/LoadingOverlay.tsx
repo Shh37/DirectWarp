@@ -15,6 +15,7 @@ export type OverlayHandle = {
   ) => void;
   clearActions: () => void;
   remove: () => void;
+  startWarpTransition: (onComplete?: () => void) => void;
 };
 
 const ACCENT = '#6B818E';
@@ -66,7 +67,25 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?:
   } as CSSStyleDeclaration);
 
   const style = document.createElement('style');
-  style.textContent = `@keyframes directwarp-spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }`;
+  style.textContent = `
+    @keyframes directwarp-spin { 
+      from { transform: rotate(0deg);} 
+      to { transform: rotate(360deg);} 
+    }
+    @keyframes directwarp-warp-cover {
+      0% { 
+        transform: translateY(100%);
+        opacity: 0;
+      }
+      10% {
+        opacity: 1;
+      }
+      100% { 
+        transform: translateY(0%);
+        opacity: 1;
+      }
+    }
+  `;
 
   const text = document.createElement('div');
   text.textContent = initialMsg;
@@ -184,6 +203,29 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?:
     },
     remove() {
       root.remove();
+    },
+    startWarpTransition(onComplete?: () => void) {
+      // ワープ用の半透明のぼかし覆いを作成
+      const warpCover = document.createElement('div');
+      Object.assign(warpCover.style, {
+        position: 'fixed',
+        inset: '0',
+        background: 'rgba(0, 0, 0, 0.7)',
+        backdropFilter: 'blur(80px)',
+        WebkitBackdropFilter: 'blur(80px)',
+        zIndex: '2147483648',
+        transform: 'translateY(100%)',
+        opacity: '0',
+        animation: 'directwarp-warp-cover 0.6s cubic-bezier(0.25, 0.1, 0.25, 1) forwards',
+      } as any);
+      
+      document.documentElement.appendChild(warpCover);
+      
+      // アニメーション完了後にコールバック実行
+      setTimeout(() => {
+        if (onComplete) onComplete();
+        // 覆いを削除しない（ワープ後に自然に消える）
+      }, 600);
     },
   };
 }
