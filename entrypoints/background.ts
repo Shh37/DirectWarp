@@ -45,8 +45,8 @@ export default defineBackground(() => {
           return runWithDeadline(async (signal): Promise<ResolveResponse> => {
             const [geminiKey, csKey, csCx] = await Promise.all([getApiKey(), getCustomSearchApiKey(), getCustomSearchCx()]);
             signal.throwIfAborted();
-            if (!geminiKey) return { ok: false, error: 'Gemini の APIキーが設定されていません。' };
-            if (!csKey || !csCx) return { ok: false, error: 'Custom Search の APIキーまたは CX が設定されていません。' };
+            if (!csKey || !csCx) return { ok: false, error: 'Custom Search の APIキーまたは CX が未設定です。JSON API の新規受付は終了しています。通常検索に戻ります。設定画面で利用条件を確認できます。' };
+            if (!geminiKey) return { ok: false, error: 'Gemini の APIキーが設定されていません。通常検索に戻ります。' };
 
             const customSearchPromise = searchTopUrls({
               apiKey: csKey, cx: csCx, query: message.query, num: settings.candidateCount,

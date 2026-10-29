@@ -87,3 +87,29 @@ describe('background uses the same validated models as settings and UI', () => {
     expect((await resolveQuery()).error).toContain('Aborted by mock');
   });
 });
+
+describe('Custom Search availability guidance', () => {
+  it.each([
+    [CUSTOM_SEARCH_API_KEY_KEY],
+    [CUSTOM_SEARCH_CX_KEY],
+    [CUSTOM_SEARCH_API_KEY_KEY, CUSTOM_SEARCH_CX_KEY, API_KEY_KEY],
+  ])('explains missing %j without issuing an eligibility probe', async (...missing) => {
+    for (const key of missing) await browser.storage.local.remove(key);
+    const result = await resolveQuery();
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('APIキーまたは CX が未設定');
+    expect(result.error).toContain('新規受付は終了');
+    expect(result.error).toContain('通常検索に戻ります');
+    expect(fetch).not.toHaveBeenCalled();
+    expect(browser.storage.local.set).not.toHaveBeenCalled();
+  });
+
+  it('does not block a configured existing customer solely because the date passed', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(new Date('2027-01-02T00:00:00+09:00').getTime());
+    const fetchMock = mockApis();
+    expect(await resolveQuery()).toEqual({ ok: true, url: 'https://example.com/' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(browser.storage.local.set).not.toHaveBeenCalled();
+    expect(browser.storage.local.remove).not.toHaveBeenCalled();
+  });
+});
