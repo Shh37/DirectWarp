@@ -2,7 +2,7 @@
 // アプリ設定の型定義とデフォルト値。APIキーは別ストレージキーに保存し、UI/設定オブジェクトには含めないこと。
 
 export type Theme = 'system' | 'light' | 'dark';
-export const SEARCH_PROVIDERS = ['none', 'custom-search'] as const;
+export const SEARCH_PROVIDERS = ['none', 'custom-search', 'tavily'] as const;
 export function isSearchProvider(value: unknown): value is typeof SEARCH_PROVIDERS[number] {
   return typeof value === 'string' && SEARCH_PROVIDERS.some((provider) => provider === value);
 }
@@ -36,7 +36,7 @@ export interface AppSettings {
   searchProvider: string;
   /** 検索トリガー（先頭一致）。例: /d, !d, #go */
   trigger: string;
-  /** 候補数（N）。Custom Search API の取得件数。例: 1〜10 */
+  /** 検索候補数（N）。例: 1〜10 */
   candidateCount: number;
   /** 明示的に許可した安定版モデル。2.5 Flash は既存利用者向け。 */
   model: GeminiModel;
@@ -67,3 +67,4 @@ export const SETTINGS_KEY = 'app:settings';
 export const API_KEY_KEY = 'secret:gemini_api_key';
 export const CUSTOM_SEARCH_API_KEY_KEY = 'secret:custom_search_api_key';
 export const CUSTOM_SEARCH_CX_KEY = 'secret:custom_search_cx';
+export const TAVILY_API_KEY_KEY = 'secret:tavily_api_key';

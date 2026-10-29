@@ -6,7 +6,11 @@ export interface SearchRequest extends SearchContext { query: string; count: num
 export type SearchFailureKind = 'not_configured' | 'unsupported_provider' | 'invalid_request' | 'authentication' | 'rate_limited' | 'unavailable' | 'network' | 'timeout' | 'cancelled' | 'invalid_response';
 export type SearchFailure = { ok: false; error: { kind: SearchFailureKind; message: string } };
 export type SearchResult = { ok: true; candidates: SearchCandidate[] } | SearchFailure;
-export interface SearchProvider { search(request: SearchRequest): Promise<SearchResult> }
+export interface SearchProvider {
+  /** 候補をGeminiに送れるかはプロバイダーの固定契約。保存設定から上書きしない。 */
+  selectionMode: 'prediction-only' | 'candidate-selection';
+  search(request: SearchRequest): Promise<SearchResult>;
+}
 export type PreparedSearchProvider = { ok: true; provider: SearchProvider } | SearchFailure;
 
 const messages: Record<SearchFailureKind, string> = {

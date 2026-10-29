@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ModelAvailability from './ModelAvailability';
 import {
   getSettingsSnapshot,
@@ -12,11 +12,14 @@ import {
   getCustomSearchCx,
   setCustomSearchCx,
   clearCustomSearchCx,
+  getTavilyApiKey,
+  setTavilyApiKey,
+  clearTavilyApiKey,
 } from '../../lib/storage';
 import { DEFAULT_SETTINGS, ALLOWED_MODELS, MODEL_LABELS, isSearchProvider, type AppSettings, type GeminiModel, type Theme } from '../../lib/settings';
-import { validateApiKey, validateCandidateCount, validateModel, validateTheme, validateTimeoutMs, validateTrigger, normalizeSettings, validateConfidenceThreshold } from '../../lib/validator';
+import { validateApiKey, validateTavilyApiKey, validateCandidateCount, validateModel, validateTheme, validateTimeoutMs, validateTrigger, normalizeSettings, validateConfidenceThreshold } from '../../lib/validator';
 
-type FieldErrors = Partial<Record<'apiKey' | 'csApiKey' | 'csCx' | keyof AppSettings, string>>;
+type FieldErrors = Partial<Record<'apiKey' | 'csApiKey' | 'csCx' | 'tavilyApiKey' | keyof AppSettings, string>>;
 
 export default function SettingsForm() {
   const [loading, setLoading] = useState(true);
@@ -27,6 +30,9 @@ export default function SettingsForm() {
   const [csApiKey, setCsApiKey] = useState('');
   const [showCsKey, setShowCsKey] = useState(false);
   const [csCx, setCsCx] = useState('');
+  const [tavilyApiKey, setTavilyKey] = useState('');
+  const [showTavilyKey, setShowTavilyKey] = useState(false);
+  const savedTavilyKey = useRef('');
 
   const [trigger, setTrigger] = useState(DEFAULT_SETTINGS.trigger);
   const [searchProvider, setSearchProvider] = useState(DEFAULT_SETTINGS.searchProvider);
@@ -57,11 +63,12 @@ export default function SettingsForm() {
     (async () => {
       setLoading(true);
       try {
-        const [snapshot, k, csk, cscx] = await Promise.all([
+        const [snapshot, k, csk, cscx, tk] = await Promise.all([
           getSettingsSnapshot(),
           getApiKey(),
           getCustomSearchApiKey(),
           getCustomSearchCx(),
+          getTavilyApiKey(),
         ]);
         const s = snapshot.settings;
         setModelMigrated(snapshot.modelMigrated);
@@ -76,6 +83,8 @@ export default function SettingsForm() {
         setApiKeyState(k ?? '');
         setCsApiKey(csk ?? '');
         setCsCx(cscx ?? '');
+        setTavilyKey(tk ?? '');
+        savedTavilyKey.current = tk ?? '';
       } finally {
         setLoading(false);
       }
@@ -113,9 +122,13 @@ export default function SettingsForm() {
     if (!v8.ok) e.apiKey = v8.error;
     if (!v9.ok) e.csApiKey = v9.error;
     if (!v10.ok) e.csCx = v10.error;
+    if (tavilyApiKey) {
+      const key = validateTavilyApiKey(tavilyApiKey);
+      if (!key.ok) e.tavilyApiKey = key.error;
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
-  }, [searchProvider, trigger, candidateCount, model, timeoutMs, confidenceThreshold, predictionConfidenceThreshold, theme, apiKey, csApiKey, csCx, loading, saving]);
+  }, [searchProvider, trigger, candidateCount, model, timeoutMs, confidenceThreshold, predictionConfidenceThreshold, theme, apiKey, csApiKey, csCx, tavilyApiKey, loading, saving]);
 
   async function handleSave() {
     setSaving(true);
@@ -132,7 +145,11 @@ export default function SettingsForm() {
         apiKey ? setApiKey(apiKey) : clearApiKey(),
         csApiKey ? setCustomSearchApiKey(csApiKey) : clearCustomSearchApiKey(),
         csCx ? setCustomSearchCx(csCx) : clearCustomSearchCx(),
+        tavilyApiKey === savedTavilyKey.current ? Promise.resolve()
+          : tavilyApiKey ? setTavilyApiKey(tavilyApiKey.trim()) : clearTavilyApiKey(),
       ]);
+      savedTavilyKey.current = tavilyApiKey.trim();
+      setTavilyKey(tavilyApiKey.trim());
       setModelMigrated(false);
       setMessage('保存しました。');
       setTimeout(() => setMessage(''), 2000);
@@ -163,10 +180,34 @@ export default function SettingsForm() {
             <select value={searchProvider} onChange={(e) => setSearchProvider(e.target.value)} style={controlStyle}>
               <option value="none">未設定（通常検索を利用）</option>
               <option value="custom-search">Custom Search（既存顧客向け）</option>
+              <option value="tavily">Tavily（カード不要の無料枠・予測照合）</option>
               {!isSearchProvider(searchProvider) && <option value={searchProvider} disabled>未対応の保存値（選び直してください）</option>}
             </select>
             {errors.searchProvider && <span style={{ color: '#B91C1C' }}>{errors.searchProvider}</span>}
           </label>
+          <section aria-label="Tavily の利用条件" style={{ fontSize: 13, lineHeight: 1.6 }}>
+            <strong>Tavilyはカード不要の無料枠で始められます</strong>
+            <p>
+              本人のTavilyアカウントとAPIキーを使用します。Researcherは月1,000 credits無料、
+              この拡張のbasic検索は1回1 creditです。Geminiの無料枠・割り当ては別です。
+              上限到達時は通常検索に戻ります。有料プランへの変更は自動で行いません。
+            </p>
+            <p>
+              検索語をTavilyとGeminiに送信します。Tavilyの検索結果はGeminiへ送らず、
+              予測URLが候補に完全一致し、予測の確信度しきい値を満たした場合だけ転送します。
+              候補をAIで比較しないため、自動転送できる場面は減る可能性があります。
+            </p>
+            <p>
+              検索結果・検索履歴はこの拡張には保存しません。Tavily側では検索語を提供・改善等に利用する場合があります。
+              開発・調査業務で本人のキーを使う構成です。登録時に最新の利用条件を確認し、機密・個人情報は入力しないでください。
+            </p>
+            <p style={{ marginBottom: 0 }}>
+              公式資料確認: 2026年10月29日 21:09〜21:13 JST。日本語の品質・速度・実API利用は未検証です。
+              {' '}<a href="https://docs.tavily.com/documentation/api-credits" target="_blank" rel="noreferrer">Tavilyの料金</a>
+              {' / '}<a href="https://www.tavily.com/terms" target="_blank" rel="noreferrer">Tavilyの利用条件</a>
+              {' / '}<a href="https://app.tavily.com/" target="_blank" rel="noreferrer">Tavilyの登録・キー管理</a>
+            </p>
+          </section>
           <section aria-label="Custom Search の利用条件" style={{ fontSize: 13, lineHeight: 1.6 }}>
             <strong>Custom Search JSON API は既存顧客向けです</strong>
             <p>
@@ -260,7 +301,7 @@ export default function SettingsForm() {
             {errors.timeoutMs && <span style={{ color: '#B91C1C' }}>{errors.timeoutMs}</span>}
           </div>
 
-          <div style={{ display: 'grid', gap: 6 }}>
+          {searchProvider !== 'tavily' && <div style={{ display: 'grid', gap: 6 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={titleStyle}>確信度しきい値: {(confidenceThreshold * 100).toFixed(0)}%</span>
             </div>
@@ -283,14 +324,14 @@ export default function SettingsForm() {
               <span>100%</span>
             </div>
             {errors.confidenceThreshold && <span style={{ color: '#B91C1C' }}>{errors.confidenceThreshold}</span>}
-          </div>
+          </div>}
 
           <div style={{ display: 'grid', gap: 6 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={titleStyle}>予測早期リターンしきい値: {(predictionConfidenceThreshold * 100).toFixed(0)}%</span>
             </div>
             <div style={{ fontSize: 12, color: '#6B7280', marginTop: -4 }}>
-              この値以上の確信度で予測結果があれば即時にワープします
+              この値以上の確信度で、予測URLが検索候補と完全一致した場合だけワープします
             </div>
             <input
               type="range"
@@ -342,7 +383,8 @@ export default function SettingsForm() {
               キーの文字列だけでは種類・権限・利用可否を判定できません。Custom Search用キーとの共用は前提にしません。
             </p>
             <p>
-              Geminiには検索語と、候補選定時のURL・タイトル・要約を送信します。
+              Geminiには検索語を送信します。Custom Searchで候補選定する場合はURL・タイトル・要約も送信します。
+              Tavilyの検索結果はGeminiへ送信しません。
               全生成リクエストはstore:falseを指定し、AI Studioのリクエスト保存を無効にします。
               2026年10月26日以降の新規有料プロジェクトでは保存が既定で有効ですが、この指定が優先されます。
             </p>
@@ -359,10 +401,27 @@ export default function SettingsForm() {
             </p>
           </section>
 
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={titleStyle}>Tavily APIキー</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type={showTavilyKey ? 'text' : 'password'} value={tavilyApiKey}
+                onChange={(e) => setTavilyKey(e.target.value)} placeholder="本人のTavily APIキー"
+                autoComplete="off" style={{ ...controlStyle, flex: 1 }} />
+              <button type="button" aria-label="Tavilyキーの表示切替" onClick={() => setShowTavilyKey((v) => !v)}>
+                {showTavilyKey ? '隠す' : '表示'}
+              </button>
+            </div>
+            {errors.tavilyApiKey && <span style={{ color: '#B91C1C' }}>{errors.tavilyApiKey}</span>}
+          </label>
+          {searchProvider === 'tavily' && <p aria-live="polite" style={{ margin: 0, fontSize: 13 }}>
+            {tavilyApiKey.trim() ? 'Tavily: キーは入力済みです（利用資格・無料残量は未確認）。' : 'Tavily: APIキーが未設定です。通常検索に戻ります。'}
+            検索プロバイダーとキーは「保存」で適用します。保存時にAPIへ通信しません。
+          </p>}
+
           <p aria-live="polite" style={{ margin: 0, fontSize: 13 }}>
             {csApiKey.trim() && csCx.trim()
               ? 'Custom Search: APIキー・CXは入力済みです（利用資格は未確認）。'
-              : `Custom Search: ${[!csApiKey.trim() && 'APIキー', !csCx.trim() && 'CX'].filter(Boolean).join('・')}が未設定です。自動転送には両方が必要です。`}
+              : `Custom Search: ${[!csApiKey.trim() && 'APIキー', !csCx.trim() && 'CX'].filter(Boolean).join('・')}が未設定です。Custom Searchでの自動転送には両方が必要です。`}
             入力の変更は「保存」で適用します。自動転送できない場合は通常検索へ戻ります。
             探索画面の「キャンセル」でも通常検索を続けられます。
           </p>
@@ -409,7 +468,7 @@ export default function SettingsForm() {
 
       <p style={{ marginTop: 12, fontSize: 12, color: '#6B7280' }}>
         APIキーは端末ローカルの拡張機能ストレージに保存します。暗号化された秘密保管庫ではありません。
-        Geminiキーは認証ヘッダーで送信し、contentへの応答やアプリのログに含めません。
+        Gemini・Tavilyキーはそれぞれの認証ヘッダーで送信し、contentへの応答やアプリのログに含めません。
         端末内のキー保存と、外部APIのデータ保存・利用条件は別です。
       </p>
     </div>

@@ -1,0 +1,11 @@
+{
+  "query": "検索テスト入力",
+  "answer": null,
+  "images": [],
+  "results": [
+    { "title": "サンプル公式", "url": "https://example.com/", "content": "合成した検索候補です。", "score": 0.9, "raw_content": null },
+    { "title": "サンプル資料", "url": "https://example.org/docs?q=a%20b#part", "content": "合成した資料の説明です。", "score": 0.8, "raw_content": null }
+  ],
+  "response_time": 0.1,
+  "request_id": "synthetic-fixture"
+}

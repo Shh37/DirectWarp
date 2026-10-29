@@ -13,7 +13,7 @@ beforeEach(async () => {
   vi.useFakeTimers(); vi.resetModules();
   Object.values(mocks).forEach((mock) => mock.mockReset());
   mockStorage({ [SETTINGS_KEY]: { ...DEFAULT_SETTINGS, searchProvider: 'custom-search', timeoutMs: 1000 }, [API_KEY_KEY]: 'fake-gemini' });
-  mocks.prepare.mockResolvedValue({ ok: true, provider: { search: mocks.search } });
+  mocks.prepare.mockResolvedValue({ ok: true, provider: { selectionMode: 'candidate-selection', search: mocks.search } });
   mocks.search.mockResolvedValue({ ok: true, candidates: [candidate] });
   mocks.predict.mockResolvedValue({ url: candidate.url, confidence: 0.1 });
   mocks.select.mockResolvedValue({ url: candidate.url, confidence: 0.9 });
@@ -65,4 +65,11 @@ it('enforces the shared deadline even when an adapter does not settle', async ()
   await vi.advanceTimersByTimeAsync(1000);
   expect(reply).toHaveBeenCalledExactlyOnceWith({ ok: false, error: expect.stringContaining('タイムアウト') });
   expect(mocks.search.mock.calls[0][0].signal.aborted).toBe(true);
+});
+
+it.each(['prediction-only', undefined])('does not disclose candidates unless the provider explicitly permits it: %j', async (selectionMode) => {
+  mocks.prepare.mockResolvedValue({ ok: true, provider: { selectionMode, search: mocks.search } });
+  const reply = await start();
+  expect(reply).toHaveBeenCalledExactlyOnceWith({ ok: false, error: expect.stringContaining('検索候補をAIへ送らず') });
+  expect(mocks.select).not.toHaveBeenCalled();
 });

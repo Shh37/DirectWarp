@@ -10,6 +10,7 @@ export default defineConfig({
       'https://www.bing.com/*',
       'https://generativelanguage.googleapis.com/*',
       'https://www.googleapis.com/*',
+      'https://api.tavily.com/*',
     ],
     icons: {
       '16': 'icon/16.png',

@@ -61,6 +61,13 @@ export function validateApiKey(input: unknown): ValidationResult<string> {
   return { ok: true, value: v };
 }
 
+export function validateTavilyApiKey(input: unknown): ValidationResult<string> {
+  const key = validateApiKey(input);
+  if (!key.ok) return key;
+  // 特定のprefixに依存せず、ヘッダーに安全に格納できるASCII文字列だけ許可。
+  return /^[\x21-\x7e]+$/.test(key.value) ? key : { ok: false, error: 'TavilyのAPIキーに空白・制御文字・非ASCII文字を含めることはできません。' };
+}
+
 export function normalizeSettings(partial: Partial<AppSettings>): ValidationResult<AppSettings> {
   const merged: AppSettings = { ...DEFAULT_SETTINGS, ...partial };
   if (!isSearchProvider(merged.searchProvider)) return { ok: false, error: '検索プロバイダーを選び直してください。' };
