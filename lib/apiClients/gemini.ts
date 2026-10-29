@@ -64,8 +64,8 @@ function backoff(delay: number, signal: AbortSignal): Promise<void> {
 }
 
 async function generateUrl(req: GeminiPredictionRequest, prompt: string): Promise<GeminiUrlResponse> {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${req.model}:generateContent?key=${encodeURIComponent(req.apiKey)}`;
-  const body = JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig });
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${req.model}:generateContent`;
+  const body = JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig, store: false });
   const deadlineAt = Math.min(req.deadlineAt ?? Infinity, Date.now() + req.timeoutMs);
   try {
     return await withTimeout(async (signal) => {
@@ -73,7 +73,7 @@ async function generateUrl(req: GeminiPredictionRequest, prompt: string): Promis
         signal.throwIfAborted();
         let res: Response;
         try {
-          res = await fetch(endpoint, { signal, method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+          res = await fetch(endpoint, { signal, method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': req.apiKey }, body });
         } catch {
           signal.throwIfAborted();
           throw new GeminiError('network');

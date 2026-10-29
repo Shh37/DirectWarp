@@ -32,7 +32,11 @@ describe.each([getBestUrl, predictBestUrl, selectBestUrlFromCandidates])('%s res
     expect(await client({ ...req, model })).toEqual(answer);
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(new URL(String(url)).pathname).toBe(`/v1beta/models/${model}:generateContent`);
+    expect(new URL(String(url)).search).toBe('');
+    expect(String(url)).not.toContain(req.apiKey);
+    expect(new Headers(init?.headers).get('x-goog-api-key')).toBe(req.apiKey);
     const body = JSON.parse(String(init?.body));
+    expect(body.store).toBe(false);
     expect(body.generationConfig).toEqual({ responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema: {
       type: 'object', properties: { url: { type: 'string' }, confidence: { type: 'number', minimum: 0, maximum: 1 } }, required: ['url', 'confidence'], additionalProperties: false,
     } } } });

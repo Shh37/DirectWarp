@@ -322,7 +322,7 @@ export default function SettingsForm() {
                 type={showKey ? 'text' : 'password'}
                 value={apiKey}
                 onChange={(e) => setApiKeyState(e.target.value)}
-                placeholder="AIza..."
+                placeholder="Gemini用のAPIキー"
                 style={{ ...controlStyle, flex: 1 }}
               />
               <button type="button" onClick={() => setShowKey((v) => !v)}>
@@ -331,6 +331,30 @@ export default function SettingsForm() {
             </div>
             {errors.apiKey && <span style={{ color: '#B91C1C' }}>{errors.apiKey}</span>}
           </label>
+
+          <section aria-label="Gemini の認証とデータ利用" style={{ fontSize: 13, lineHeight: 1.6 }}>
+            <p>
+              Auth key、またはGemini APIへの制限を設定したStandard keyを使用します。
+              無制限の旧Standard keyは拒否されます。2026年5月28日以降、AI Studioで新規作成するキーはAuth keyが既定です。
+              キーの文字列だけでは種類・権限・利用可否を判定できません。Custom Search用キーとの共用は前提にしません。
+            </p>
+            <p>
+              Geminiには検索語と、候補選定時のURL・タイトル・要約を送信します。
+              全生成リクエストはstore:falseを指定し、AI Studioのリクエスト保存を無効にします。
+              2026年10月26日以降の新規有料プロジェクトでは保存が既定で有効ですが、この指定が優先されます。
+            </p>
+            <p>
+              store:falseは無料サービスのデータ利用や全種類の保持を無効にする指定ではありません。
+              無料サービスでは入力・出力が製品改善や人手レビューに利用される場合があり、機密・個人情報を送らないでください。
+              有料サービスでは製品改善に使わないとされていますが、不正利用対策等の保持は別です。適用条件には地域等による違いがあります。
+            </p>
+            <p style={{ marginBottom: 0 }}>
+              公式資料確認: 2026年10月29日 20:16〜20:17 JST。
+              {' '}<a href="https://ai.google.dev/gemini-api/docs/api-key" target="_blank" rel="noreferrer">認証条件</a>
+              {' / '}<a href="https://ai.google.dev/gemini-api/docs/logs-datasets" target="_blank" rel="noreferrer">リクエスト保存</a>
+              {' / '}<a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noreferrer">データ利用条件</a>
+            </p>
+          </section>
 
           <p aria-live="polite" style={{ margin: 0, fontSize: 13 }}>
             {csApiKey.trim() && csCx.trim()
@@ -381,7 +405,9 @@ export default function SettingsForm() {
       )}
 
       <p style={{ marginTop: 12, fontSize: 12, color: '#6B7280' }}>
-        APIキーは端末ローカルの拡張機能ストレージに保存され、ログや例外に出力されません。
+        APIキーは端末ローカルの拡張機能ストレージに保存します。暗号化された秘密保管庫ではありません。
+        Geminiキーはbackgroundから認証ヘッダーで送信し、contentへの応答やアプリのログに含めません。
+        端末内のキー保存と、外部APIのデータ保存・利用条件は別です。
       </p>
     </div>
   );

@@ -143,3 +143,20 @@ it('displays the legacy provider until the user explicitly changes it', async ()
   expect(local.set).not.toHaveBeenCalled();
   expect(fetch).not.toHaveBeenCalled();
 });
+
+it('explains key eligibility and distinct data policies while preserving keys of an unfamiliar format', async () => {
+  const initial = { [SETTINGS_KEY]: { ...DEFAULT_SETTINGS }, [API_KEY_KEY]: 'future-auth:dummy.key-format', [CUSTOM_SEARCH_API_KEY_KEY]: 'separate-search-key', [CUSTOM_SEARCH_CX_KEY]: 'fake-cx' };
+  const { data, local } = mockStorage(initial);
+  render(<SettingsForm />);
+  const notice = await screen.findByRole('region', { name: 'Gemini の認証とデータ利用' });
+  for (const text of ['Auth key', 'Standard key', '無制限の旧', '2026年5月28日', '2026年10月26日', 'store:false', '無料サービスのデータ利用や全種類の保持を無効にする指定ではありません', '検索語', 'URL・タイトル・要約', '20:16〜20:17 JST']) expect(notice.textContent).toContain(text);
+  expect(screen.getByRole<HTMLAnchorElement>('link', { name: '認証条件' }).href).toBe('https://ai.google.dev/gemini-api/docs/api-key');
+  expect(screen.getByRole<HTMLAnchorElement>('link', { name: 'リクエスト保存' }).href).toBe('https://ai.google.dev/gemini-api/docs/logs-datasets');
+  expect(screen.getByRole<HTMLAnchorElement>('link', { name: 'データ利用条件' }).href).toBe('https://ai.google.dev/gemini-api/terms');
+  expect((screen.getByPlaceholderText('Gemini用のAPIキー') as HTMLInputElement).value).toBe(initial[API_KEY_KEY]);
+  expect(local.set).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: '保存' }));
+  await screen.findByText('保存しました。');
+  expect(data).toEqual(initial);
+  expect(fetch).not.toHaveBeenCalled();
+});
