@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import ModelAvailability from './ModelAvailability';
 import {
   getSettingsSnapshot,
   setSettings,
@@ -236,6 +237,8 @@ export default function SettingsForm() {
             利用可否・割り当てはプロジェクトに依存し、この画面では実APIで確認していません。
           </p>
 
+          <ModelAvailability apiKeyInput={apiKey} />
+
           <div style={{ display: 'grid', gap: 6 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={titleStyle}>タイムアウト: {timeoutMs / 1000} 秒</span>
@@ -406,7 +409,7 @@ export default function SettingsForm() {
 
       <p style={{ marginTop: 12, fontSize: 12, color: '#6B7280' }}>
         APIキーは端末ローカルの拡張機能ストレージに保存します。暗号化された秘密保管庫ではありません。
-        Geminiキーはbackgroundから認証ヘッダーで送信し、contentへの応答やアプリのログに含めません。
+        Geminiキーは認証ヘッダーで送信し、contentへの応答やアプリのログに含めません。
         端末内のキー保存と、外部APIのデータ保存・利用条件は別です。
       </p>
     </div>
