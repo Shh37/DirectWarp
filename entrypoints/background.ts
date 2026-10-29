@@ -76,6 +76,10 @@ export default defineBackground(() => {
               return url ? { ok: true, url } : { ok: false, error: '予測URLが検索候補に一致しません。通常検索に戻ります。' };
             }
 
+            // 明示的に許されたプロバイダー以外の検索結果をGeminiへ送らない。
+            if (prepared.provider.selectionMode !== 'candidate-selection') {
+              return { ok: false, error: '予測URLの確信度が不足しているか、予測できませんでした。検索候補をAIへ送らず、通常検索に戻ります。' };
+            }
             const result = await selectBestUrlFromCandidates({
               apiKey: geminiKey, model: settings.model, query: message.query, candidates: items,
               timeoutMs, deadlineAt, signal,

@@ -15,6 +15,7 @@ export async function prepareCustomSearchProvider(context: SearchContext): Promi
       return {
         ok: true,
         provider: {
+          selectionMode: 'candidate-selection',
           async search(request: SearchRequest): Promise<SearchResult> {
             try {
               const candidates = await runWithDeadline((requestSignal) => {

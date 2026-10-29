@@ -3,11 +3,54 @@ import React from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SettingsForm from '../entrypoints/shared/SettingsForm';
-import { ALLOWED_MODELS, API_KEY_KEY, CUSTOM_SEARCH_API_KEY_KEY, CUSTOM_SEARCH_CX_KEY, DEFAULT_SETTINGS, SETTINGS_KEY } from '../lib/settings';
+import { ALLOWED_MODELS, API_KEY_KEY, CUSTOM_SEARCH_API_KEY_KEY, CUSTOM_SEARCH_CX_KEY, DEFAULT_SETTINGS, SETTINGS_KEY, TAVILY_API_KEY_KEY } from '../lib/settings';
 import { getSettings } from '../lib/storage';
 import { mockStorage } from './storageMock';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+it('saves and switches Tavily explicitly, preserving legacy credentials and hidden thresholds without probes', async () => {
+  const initial = { [SETTINGS_KEY]: { ...DEFAULT_SETTINGS, searchProvider: 'custom-search', confidenceThreshold: 0.73 }, [API_KEY_KEY]: 'gemini-key', [CUSTOM_SEARCH_API_KEY_KEY]: 'legacy-key', [CUSTOM_SEARCH_CX_KEY]: 'legacy-cx' };
+  const { data, local } = mockStorage(initial);
+  const first = render(<SettingsForm />);
+  const select = await screen.findByRole<HTMLSelectElement>('combobox', { name: /^検索プロバイダー/ });
+  expect(select.value).toBe('custom-search'); expect(local.set).not.toHaveBeenCalled();
+  const notice = screen.getByRole('region', { name: 'Tavily の利用条件' });
+  expect(notice.textContent).toContain('カード不要'); expect(notice.textContent).toContain('月1,000 credits無料');
+  expect(notice.textContent).toContain('検索結果はGeminiへ送らず');
+  fireEvent.change(select, { target: { value: 'tavily' } });
+  expect(screen.queryByText(/^確信度しきい値:/)).toBeNull();
+  const input = screen.getByPlaceholderText<HTMLInputElement>('本人のTavily APIキー');
+  expect(input.type).toBe('password');
+  fireEvent.change(input, { target: { value: 'tvly-user-key' } });
+  expect(data).toEqual(initial); expect(fetch).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: '保存' })); await screen.findByText('保存しました。');
+  const saved = { ...initial, [SETTINGS_KEY]: { ...initial[SETTINGS_KEY], searchProvider: 'tavily' }, [TAVILY_API_KEY_KEY]: 'tvly-user-key' };
+  expect(data).toEqual(saved);
+  first.unmount(); render(<SettingsForm />);
+  const reloaded = await screen.findByRole<HTMLSelectElement>('combobox', { name: /^検索プロバイダー/ });
+  expect(reloaded.value).toBe('tavily');
+  expect(screen.getByPlaceholderText<HTMLInputElement>('本人のTavily APIキー').value).toBe('tvly-user-key');
+  fireEvent.change(reloaded, { target: { value: 'custom-search' } });
+  expect(screen.getByText('確信度しきい値: 73%')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: '保存' })); await screen.findByText('保存しました。');
+  expect(data).toEqual({ ...saved, [SETTINGS_KEY]: initial[SETTINGS_KEY] });
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it('validates and explicitly clears only the Tavily key without changing the provider', async () => {
+  const { data } = mockStorage({ [SETTINGS_KEY]: { ...DEFAULT_SETTINGS, searchProvider: 'tavily' }, [TAVILY_API_KEY_KEY]: 'tvly-user-key', [API_KEY_KEY]: 'gemini-key' });
+  render(<SettingsForm />);
+  const input = await screen.findByPlaceholderText<HTMLInputElement>('本人のTavily APIキー');
+  fireEvent.change(input, { target: { value: 'bad key' } });
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: '保存' }).disabled).toBe(true);
+  expect(data[TAVILY_API_KEY_KEY]).toBe('tvly-user-key');
+  fireEvent.change(input, { target: { value: '' } });
+  fireEvent.click(screen.getByRole('button', { name: '保存' })); await screen.findByText('保存しました。');
+  expect(data[TAVILY_API_KEY_KEY]).toBeUndefined(); expect(data[API_KEY_KEY]).toBe('gemini-key');
+  expect(data[SETTINGS_KEY]).toMatchObject({ searchProvider: 'tavily' });
+  expect(fetch).not.toHaveBeenCalled();
+});
 
 it.each(['gemini-2.0-flash', 'gemini-2.0-pro', 'invalid', null, undefined])('notifies for %j after a background read and saves without changing unrelated settings or keys', async (model) => {
   const saved = { ...DEFAULT_SETTINGS, model, trigger: '!keep', candidateCount: 7, theme: 'dark', timeoutMs: 29_500, confidenceThreshold: 0.73 };

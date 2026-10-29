@@ -2,7 +2,7 @@
 // browser.storage.local を用いた安全な保存/取得のラッパー。
 // 注意: APIキーはログに出力しない。例外時もキーを含めない。
 
-import { type AppSettings, DEFAULT_SETTINGS, SETTINGS_KEY, API_KEY_KEY, CUSTOM_SEARCH_API_KEY_KEY, CUSTOM_SEARCH_CX_KEY, isAllowedModel, isSearchProvider } from './settings';
+import { type AppSettings, DEFAULT_SETTINGS, SETTINGS_KEY, API_KEY_KEY, CUSTOM_SEARCH_API_KEY_KEY, CUSTOM_SEARCH_CX_KEY, TAVILY_API_KEY_KEY, isAllowedModel, isSearchProvider } from './settings';
 
 export interface SettingsSnapshot {
   settings: AppSettings;
@@ -89,4 +89,18 @@ export async function setCustomSearchCx(cx: string): Promise<void> {
 
 export async function clearCustomSearchCx(): Promise<void> {
   await browser.storage.local.remove(CUSTOM_SEARCH_CX_KEY);
+}
+
+export async function getTavilyApiKey(): Promise<string | null> {
+  const obj = await browser.storage.local.get(TAVILY_API_KEY_KEY);
+  const key: unknown = obj?.[TAVILY_API_KEY_KEY];
+  return typeof key === 'string' ? key : null;
+}
+
+export async function setTavilyApiKey(key: string): Promise<void> {
+  await browser.storage.local.set({ [TAVILY_API_KEY_KEY]: key });
+}
+
+export async function clearTavilyApiKey(): Promise<void> {
+  await browser.storage.local.remove(TAVILY_API_KEY_KEY);
 }
