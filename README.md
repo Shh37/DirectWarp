@@ -61,7 +61,7 @@ DirectWarpは、Google/Bingの検索ページでトリガーを検知し、Custo
 - **タイムアウト(ms)**: URL解決全体の待機期限（既定15秒、保存値は1,000〜120,000ms、設定画面は1〜30秒）
 - **確信度しきい値**: リダイレクトを許可する最小スコア（0.0〜1.0、デフォルト 0.5）
 - **テーマ**: システム設定に従う / ライト / ダーク
-- **Gemini APIキー**: 端末内の拡張機能ストレージに保存し、backgroundから認証ヘッダーで送信します。暗号化された秘密保管庫ではありません。
+- **Gemini APIキー**: 端末内の拡張機能ストレージに保存し、認証ヘッダーで送信します。暗号化された秘密保管庫ではありません。
 - **Custom Search APIキー・CX**: 既存顧客の検索に必要。入力済みでも利用資格を確認したことにはなりません。
 
 ### Custom Search の利用条件と料金
@@ -149,6 +149,25 @@ GeminiはAuth key、または明示的なAPI制限を持つStandard keyを使用
 **実APIによる利用可否・品質・速度は未検証**です。モデルの利用条件と拡張全体の導入可否は別で、検索用APIキーとCXも必要です。この変更ではサービス登録、課金、実API呼び出しを行いません。
 
 根拠: [モデルカタログ](https://ai.google.dev/gemini-api/docs/models)、[3.5 Flash-Lite の仕様](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)、[提供終了・アクセス制限](https://ai.google.dev/gemini-api/docs/deprecations)、[料金](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.5-flash-lite)、[リリースノート](https://ai.google.dev/gemini-api/docs/changelog)、[移行時のAPI変更](https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.6)。
+
+### モデル一覧の確認・更新
+
+設定画面の「保存済みキーでモデル一覧を確認」を押したときだけ、`models.list` を取得します。未保存のキーでは通信しません。モデル一覧取得は検索語や候補を送らず、生成の接続テストも行いません。モデル選択・既定値・保存設定は自動変更せず、確認できない場合も静的な対応モデル一覧を残します。
+
+一覧はページサイズ1000を指定し、`nextPageToken` がなくなるまで同じ条件で取得します。重複は集約し、同一IDで対応メソッドが矛盾する場合は利用可と推測しません。通信・本文読込・ページ送りは15秒の共通期限で中断できます。循環するページトークンや20ページを超える応答は不完全として失敗にし、部分的な一覧を確認済みとして記録しません。権限・429・ネットワーク等の失敗時には自動再試行しません。
+
+照合対象は `ALLOWED_MODELS` の明示的なIDだけです。APIの `supportedGenerationMethods` にある `generateContent` に加え、公式モデル別資料に基づく `MODEL_CAPABILITIES` のテキスト出力・構造化出力・安定版区分を確認します。Models APIの現行フィールドだけではこれらを全て判定できません。音声・画像・Embedding専用、Preview、未知のIDを取得しただけで選択可能にはしません。**一覧への掲載は生成の成功、割当、料金・アクセス条件の保証ではありません。**
+
+最終確認日時（表示はJST）と成功/失敗を保存します。確認記録にはキー値やAPIの自由文を含めず、キーのSHA-256識別子と照合して別キー・別プロジェクトの結果を流用しません。キーを編集中・変更後は以前の結果を表示せず、確認中のキー変更や画面を閉じた場合は処理を中断します。同じキーのクラウド側権限・課金・利用条件の変更は自動検知できないため、変更後は明示的に再確認してください。
+
+運用手順:
+
+1. キー・プロジェクト変更後、またはモデルの終了・アクセス制限の告知時に、公式の[モデルカタログ](https://ai.google.dev/gemini-api/docs/models)と[提供終了一覧](https://ai.google.dev/gemini-api/docs/deprecations)を確認します。
+2. 拡張の設定画面でキーを保存し、一覧確認を実行して日時・対象モデルの掲載とメソッド対応を確認します。生成APIを自動実行して利用枠を試しません。
+3. 対応モデルを追加・削除するときは、モデル別の出力・構造化出力・安定版区分、料金・終了予定を公式資料で確認し、`ALLOWED_MODELS` / `MODEL_CAPABILITIES` / 表示名と保存設定の移行を同じPRで更新します。静的一覧の変更を自動採用しません。
+4. fixture、型チェック、Chrome/Firefoxビルドで確認し、実APIで未確認の項目をPRに残します。
+
+公式資料確認: **2026年10月29日 20:20〜20:21 JST**。[Models APIのページング・フィールド](https://ai.google.dev/api/models)、[提供終了](https://ai.google.dev/gemini-api/docs/deprecations)、[プロジェクト単位の割当](https://ai.google.dev/gemini-api/docs/rate-limits)。テキスト・構造化出力は同日に確認したモデル別資料を使用しています。実際の一覧APIは今回呼び出していません。
 
 ### タイムアウトと通常検索への復帰
 

@@ -24,6 +24,13 @@ export function isAllowedModel(value: unknown): value is GeminiModel {
   return typeof value === 'string' && ALLOWED_MODELS.some((model) => model === value);
 }
 
+// Models APIだけでは判定できない能力・リリース区分を公式資料から管理する。
+// 確認: 2026-10-29。新IDの追加にはモデル別資料・提供終了予定の再確認が必要。
+export const MODEL_CAPABILITIES: Record<GeminiModel, { textOutput: boolean; structuredOutput: boolean; release: 'stable' | 'preview' }> = {
+  'gemini-3.5-flash-lite': { textOutput: true, structuredOutput: true, release: 'stable' },
+  'gemini-2.5-flash': { textOutput: true, structuredOutput: true, release: 'stable' },
+};
+
 export interface AppSettings {
   /** 未知の保存値も保持し、別サービスに自動で切り替えない。 */
   searchProvider: string;
