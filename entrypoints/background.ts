@@ -1,6 +1,6 @@
-import { getSettings, getApiKey, getCustomSearchApiKey, getCustomSearchCx } from '../lib/storage';
+import { getSettings, getApiKey } from '../lib/storage';
 import { selectBestUrlFromCandidates, predictBestUrl } from '../lib/apiClients/gemini';
-import { searchTopUrls } from '../lib/apiClients/customSearch';
+import { prepareSearchProvider } from '../lib/search';
 import { runWithDeadline } from '../lib/deadline';
 import { MAX_RESOLUTION_TIMEOUT_MS, resolutionTimeout, type ResolveResponse } from '../lib/resolution';
 import { isNavigationUrl, matchCandidateUrl } from '../lib/navigationUrl';
@@ -44,14 +44,15 @@ export default defineBackground(() => {
           const timeoutMs = resolutionTimeout(settings.timeoutMs);
           const deadlineAt = Math.min(incomingDeadline, startTime + timeoutMs);
           return runWithDeadline(async (signal): Promise<ResolveResponse> => {
-            const [geminiKey, csKey, csCx] = await Promise.all([getApiKey(), getCustomSearchApiKey(), getCustomSearchCx()]);
+            const [geminiKey, prepared] = await Promise.all([
+              getApiKey(), prepareSearchProvider(settings.searchProvider, { deadlineAt, signal }),
+            ]);
             signal.throwIfAborted();
-            if (!csKey || !csCx) return { ok: false, error: 'Custom Search の APIキーまたは CX が未設定です。JSON API の新規受付は終了しています。通常検索に戻ります。設定画面で利用条件を確認できます。' };
+            if (!prepared.ok) return { ok: false, error: prepared.error.message };
             if (!geminiKey) return { ok: false, error: 'Gemini の APIキーが設定されていません。通常検索に戻ります。' };
 
-            const customSearchPromise = searchTopUrls({
-              apiKey: csKey, cx: csCx, query: message.query, num: settings.candidateCount,
-              timeoutMs, deadlineAt, signal,
+            const searchPromise = prepared.provider.search({
+              query: message.query, count: settings.candidateCount, deadlineAt, signal,
             });
             // 検索完了を待たず、開始した時点で予測の成功/失敗を回収する。
             const predictionPromise = predictBestUrl({
@@ -59,8 +60,10 @@ export default defineBackground(() => {
               deadlineAt: Math.min(deadlineAt, startTime + Math.floor(timeoutMs * 0.6)), signal,
             }).then((value) => value, () => null);
 
-            const items = (await customSearchPromise).filter((item) => isNavigationUrl(item.url));
-            if (!items.length) return { ok: false, error: 'Custom Search で候補が見つかりませんでした。' };
+            const search = await searchPromise;
+            if (!search.ok) return { ok: false, error: search.error.message };
+            const items = search.candidates.filter((item) => isNavigationUrl(item.url));
+            if (!items.length) return { ok: false, error: '検索候補が見つかりませんでした。' };
             const prediction = await predictionPromise;
             signal.throwIfAborted();
             const predictionThreshold = typeof settings.predictionConfidenceThreshold === 'number' ? settings.predictionConfidenceThreshold : 0.85;

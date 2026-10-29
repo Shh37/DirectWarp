@@ -9,6 +9,7 @@ let listener: Listener;
 beforeEach(async () => {
   vi.resetModules();
   mockStorage({
+    [SETTINGS_KEY]: { model: DEFAULT_SETTINGS.model }, // Existing settings without a provider ID.
     [API_KEY_KEY]: 'fake-gemini-key', [CUSTOM_SEARCH_API_KEY_KEY]: 'fake-search-key', [CUSTOM_SEARCH_CX_KEY]: 'fake-cx',
   });
   Object.assign(browser, { runtime: { onMessage: { addListener: (fn: Listener) => { listener = fn; } } } });
@@ -54,7 +55,7 @@ function mockApis(options: { selectionStatus?: number; emptySearch?: boolean; em
 
 describe('background uses the same validated models as settings and UI', () => {
   it.each(['gemini-2.0-flash', 'gemini-2.0-pro', 'invalid', ...ALLOWED_MODELS, undefined])('resolves with saved model %s', async (savedModel) => {
-    if (savedModel !== undefined) await browser.storage.local.set({ [SETTINGS_KEY]: { ...DEFAULT_SETTINGS, model: savedModel } });
+    if (savedModel !== undefined) await browser.storage.local.set({ [SETTINGS_KEY]: { ...DEFAULT_SETTINGS, searchProvider: 'custom-search', model: savedModel } });
     const fetchMock = mockApis();
     expect(await resolveQuery()).toEqual({ ok: true, url: 'https://example.com/' });
     const expected = savedModel === 'gemini-2.5-flash' ? savedModel : DEFAULT_SETTINGS.model;
@@ -73,7 +74,7 @@ describe('background uses the same validated models as settings and UI', () => {
 
   it('reports missing search candidates', async () => {
     const fetchMock = mockApis({ emptySearch: true });
-    expect(await resolveQuery()).toEqual({ ok: false, error: 'Custom Search で候補が見つかりませんでした。' });
+    expect(await resolveQuery()).toEqual({ ok: false, error: '検索候補が見つかりませんでした。' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -124,6 +125,11 @@ describe('candidate membership at both resolution paths', () => {
 });
 
 describe('Custom Search availability guidance', () => {
+  it.each(['none', 'future-search', '', null])('does not send queries for unavailable provider %j', async (searchProvider) => {
+    await browser.storage.local.set({ [SETTINGS_KEY]: { ...DEFAULT_SETTINGS, searchProvider } });
+    expect((await resolveQuery()).ok).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it.each([
     [CUSTOM_SEARCH_API_KEY_KEY],
     [CUSTOM_SEARCH_CX_KEY],

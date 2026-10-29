@@ -12,7 +12,7 @@ import {
   setCustomSearchCx,
   clearCustomSearchCx,
 } from '../../lib/storage';
-import { DEFAULT_SETTINGS, ALLOWED_MODELS, MODEL_LABELS, type AppSettings, type GeminiModel, type Theme } from '../../lib/settings';
+import { DEFAULT_SETTINGS, ALLOWED_MODELS, MODEL_LABELS, isSearchProvider, type AppSettings, type GeminiModel, type Theme } from '../../lib/settings';
 import { validateApiKey, validateCandidateCount, validateModel, validateTheme, validateTimeoutMs, validateTrigger, normalizeSettings, validateConfidenceThreshold } from '../../lib/validator';
 
 type FieldErrors = Partial<Record<'apiKey' | 'csApiKey' | 'csCx' | keyof AppSettings, string>>;
@@ -28,6 +28,7 @@ export default function SettingsForm() {
   const [csCx, setCsCx] = useState('');
 
   const [trigger, setTrigger] = useState(DEFAULT_SETTINGS.trigger);
+  const [searchProvider, setSearchProvider] = useState(DEFAULT_SETTINGS.searchProvider);
   const [candidateCount, setCandidateCount] = useState<number>(DEFAULT_SETTINGS.candidateCount);
   const [model, setModel] = useState<GeminiModel>(DEFAULT_SETTINGS.model);
   const [modelMigrated, setModelMigrated] = useState(false);
@@ -64,6 +65,7 @@ export default function SettingsForm() {
         const s = snapshot.settings;
         setModelMigrated(snapshot.modelMigrated);
         setTrigger(s.trigger);
+        setSearchProvider(s.searchProvider);
         setCandidateCount(s.candidateCount);
         setModel(s.model);
         setTimeoutMs(s.timeoutMs);
@@ -99,6 +101,7 @@ export default function SettingsForm() {
       return { ok: true as const, value: csCx.trim() };
     })();
     const e: FieldErrors = {};
+    if (!isSearchProvider(searchProvider)) e.searchProvider = '検索プロバイダーを選び直してください。';
     if (!v1.ok) e.trigger = v1.error;
     if (!v2.ok) e.candidateCount = v2.error;
     if (!v3.ok) e.model = v3.error;
@@ -111,14 +114,14 @@ export default function SettingsForm() {
     if (!v10.ok) e.csCx = v10.error;
     setErrors(e);
     return Object.keys(e).length === 0;
-  }, [trigger, candidateCount, model, timeoutMs, confidenceThreshold, predictionConfidenceThreshold, theme, apiKey, csApiKey, csCx, loading, saving]);
+  }, [searchProvider, trigger, candidateCount, model, timeoutMs, confidenceThreshold, predictionConfidenceThreshold, theme, apiKey, csApiKey, csCx, loading, saving]);
 
   async function handleSave() {
     setSaving(true);
     setMessage('');
     try {
       // validate
-      const normalized = normalizeSettings({ trigger, candidateCount, model, timeoutMs, confidenceThreshold, predictionConfidenceThreshold, theme });
+      const normalized = normalizeSettings({ searchProvider, trigger, candidateCount, model, timeoutMs, confidenceThreshold, predictionConfidenceThreshold, theme });
       if (!normalized.ok) {
         setErrors({ general: normalized.error } as any);
         return;
@@ -154,6 +157,15 @@ export default function SettingsForm() {
           }}
           style={{ display: 'grid', gap: 12 }}
         >
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={titleStyle}>検索プロバイダー</span>
+            <select value={searchProvider} onChange={(e) => setSearchProvider(e.target.value)} style={controlStyle}>
+              <option value="none">未設定（通常検索を利用）</option>
+              <option value="custom-search">Custom Search（既存顧客向け）</option>
+              {!isSearchProvider(searchProvider) && <option value={searchProvider} disabled>未対応の保存値（選び直してください）</option>}
+            </select>
+            {errors.searchProvider && <span style={{ color: '#B91C1C' }}>{errors.searchProvider}</span>}
+          </label>
           <section aria-label="Custom Search の利用条件" style={{ fontSize: 13, lineHeight: 1.6 }}>
             <strong>Custom Search JSON API は既存顧客向けです</strong>
             <p>

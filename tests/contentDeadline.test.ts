@@ -115,7 +115,7 @@ it.each(['javascript:alert(1)', 'https://', 'https://user:pass@example.com/', 'h
   await vi.advanceTimersByTimeAsync(2000); expectSearchOnce();
 });
 
-it.each(['予測URLが検索候補に一致しません。', '選定URLが検索候補に一致しません。', 'Custom Search で候補が見つかりませんでした。', 'モデルの確信度が低いため中断しました。'])('returns to normal search after a rejected resolution: %s', async (error) => {
+it.each(['予測URLが検索候補に一致しません。', '選定URLが検索候補に一致しません。', '検索候補が見つかりませんでした。', 'モデルの確信度が低いため中断しました。', '検索プロバイダーが未設定です。', '保存された検索プロバイダーには対応していません。'])('returns to normal search after a rejected resolution: %s', async (error) => {
   resolveReply({ ok: false, error }); await vi.advanceTimersByTimeAsync(2000);
   expectSearchOnce(); expect(overlay.startWarpTransition).not.toHaveBeenCalled();
 });
