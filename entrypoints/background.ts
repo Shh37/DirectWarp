@@ -1,5 +1,6 @@
 import { getSettings, getApiKey } from '../lib/storage';
 import { selectBestUrlFromCandidates, predictBestUrl } from '../lib/apiClients/gemini';
+import { GeminiError } from '../lib/apiClients/geminiErrors';
 import { prepareSearchProvider } from '../lib/search';
 import { runWithDeadline } from '../lib/deadline';
 import { MAX_RESOLUTION_TIMEOUT_MS, resolutionTimeout, type ResolveResponse } from '../lib/resolution';
@@ -58,14 +59,17 @@ export default defineBackground(() => {
             const predictionPromise = predictBestUrl({
               apiKey: geminiKey, model: settings.model, query: message.query, timeoutMs,
               deadlineAt: Math.min(deadlineAt, startTime + Math.floor(timeoutMs * 0.6)), signal,
-            }).then((value) => value, () => null);
+            }).then((value) => ({ value, error: null }), (error: unknown) => ({ value: null, error }));
 
             const search = await searchPromise;
             if (!search.ok) return { ok: false, error: search.error.message };
             const items = search.candidates.filter((item) => isNavigationUrl(item.url));
             if (!items.length) return { ok: false, error: '検索候補が見つかりませんでした。' };
-            const prediction = await predictionPromise;
+            const predicted = await predictionPromise;
             signal.throwIfAborted();
+            // 恒常的な設定・権限・利用枠エラーなら、別プロンプトでも再送しない。
+            if (predicted.error instanceof GeminiError && ['invalid_input', 'authentication', 'permission', 'payment', 'model_unavailable', 'quota'].includes(predicted.error.kind)) throw predicted.error;
+            const prediction = predicted.value;
             const predictionThreshold = typeof settings.predictionConfidenceThreshold === 'number' ? settings.predictionConfidenceThreshold : 0.85;
             if (prediction && prediction.confidence >= predictionThreshold) {
               const url = matchCandidateUrl(prediction.url, items);

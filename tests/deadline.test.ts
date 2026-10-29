@@ -37,7 +37,7 @@ describe.each(clients)('%s deadline includes the complete response', (client) =>
   it('cleans up after successful body consumption', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       items: [{ link: 'https://example.com/' }],
-      candidates: [{ content: { parts: [{ text: '{"url":"https://example.com/","confidence":0.9}' }] } }],
+      candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '{"url":"https://example.com/","confidence":0.9}' }] } }],
     }))));
     await expect(client(base)).resolves.toBeTruthy();
   });

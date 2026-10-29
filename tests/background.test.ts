@@ -27,10 +27,10 @@ function resolveQuery(query = 'example') {
 }
 
 function geminiResult(confidence: number) {
-  return { candidates: [{ content: { parts: [{ text: JSON.stringify({ url: 'https://example.com/', confidence }) }] } }] };
+  return { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ url: 'https://example.com/', confidence }) }] } }] };
 }
 
-function mockApis(options: { selectionStatus?: number; emptySearch?: boolean; emptyGemini?: boolean; networkFailure?: boolean; prediction?: unknown; selection?: unknown; items?: unknown[] } = {}) {
+function mockApis(options: { predictionStatus?: number; selectionStatus?: number; emptySearch?: boolean; emptyGemini?: boolean; networkFailure?: boolean; prediction?: unknown; selection?: unknown; items?: unknown[] } = {}) {
   let geminiCalls = 0;
   const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
@@ -41,9 +41,10 @@ function mockApis(options: { selectionStatus?: number; emptySearch?: boolean; em
     const body = JSON.parse(String(init?.body));
     expect(body.contents[0].role).toBe('user');
     expect(body.contents[0].parts[0].text).toContain('example');
-    expect(body.generationConfig).toBeUndefined();
+    expect(body.generationConfig.responseFormat.text.mimeType).toBe('APPLICATION_JSON');
     geminiCalls += 1;
-    const result = (value: unknown) => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(value) }] } }] });
+    if (geminiCalls === 1 && options.predictionStatus) return new Response('DUMMY_KEY https://private.example/?key=DUMMY_KEY PRIVATE_BODY', { status: options.predictionStatus });
+    const result = (value: unknown) => ({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(value) }] } }] });
     if (geminiCalls === 1) return new Response(JSON.stringify(options.prediction ? result(options.prediction) : geminiResult(0.1))); // exercise selection too
     if (options.networkFailure) throw new DOMException('Aborted by mock', 'AbortError');
     if (options.selectionStatus) return new Response('Fixture API error', { status: options.selectionStatus });
@@ -65,6 +66,7 @@ describe('background uses the same validated models as settings and UI', () => {
   });
 
   it.each([403, 404, 429, 500])('reports HTTP %s without switching to a restricted or unapproved model', async (selectionStatus) => {
+    await browser.storage.local.set({ [SETTINGS_KEY]: { ...DEFAULT_SETTINGS, searchProvider: 'custom-search', timeoutMs: 1000 } });
     const fetchMock = mockApis({ selectionStatus });
     const result = await resolveQuery();
     expect(result.ok).toBe(false);
@@ -78,6 +80,16 @@ describe('background uses the same validated models as settings and UI', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it.each([400, 401, 402, 403, 404, 429])('stops after a permanent prediction HTTP %s without exposing secrets to content', async (predictionStatus) => {
+    const fetchMock = mockApis({ predictionStatus });
+    const result = await resolveQuery();
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain(String(predictionStatus));
+    expect(JSON.stringify(result)).not.toMatch(/DUMMY_KEY|private.example|PRIVATE_BODY/);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(console.log).not.toHaveBeenCalled();
+  });
+
   it('reports empty Gemini candidates with the migrated model', async () => {
     await browser.storage.local.set({ [SETTINGS_KEY]: { model: 'gemini-2.0-flash' } });
     mockApis({ emptyGemini: true });
@@ -86,7 +98,7 @@ describe('background uses the same validated models as settings and UI', () => {
 
   it('reports a rejected request', async () => {
     mockApis({ networkFailure: true });
-    expect((await resolveQuery()).error).toContain('Aborted by mock');
+    expect((await resolveQuery()).error).toContain('通信に失敗');
   });
 });
 

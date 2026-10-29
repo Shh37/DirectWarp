@@ -5,7 +5,7 @@ import { mockStorage } from './storageMock';
 let listener: (message: any, sender: any, reply: (value: any) => void) => unknown;
 const sender = { tab: { id: 7 }, frameId: 0 };
 const searchResult = () => new Response(JSON.stringify({ items: [{ link: 'https://example.com/' }] }));
-const geminiResult = (confidence = 0.9) => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ url: 'https://example.com/', confidence }) }] } }] }));
+const geminiResult = (confidence = 0.9) => new Response(JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ url: 'https://example.com/', confidence }) }] } }] }));
 let signals: AbortSignal[];
 
 beforeEach(async () => {
