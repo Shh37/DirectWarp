@@ -101,11 +101,23 @@ Custom SearchのHTTPステータスは400を不正入力、401/403を認証・�
 
 予測・通常選定とも、採用するURLは検索候補の文字列との**完全一致**を必須とします。候補ID方式ではなく完全一致を選び、現在のURL応答形式と候補なしの並行予測を維持します。ドメインだけ・前方一致・部分一致では判定せず、パス・ポート・クエリ・フラグメントも比較します。大文字小文字や末尾スラッシュなど同等に見える別表記も、推測で同一視せず拒否します。候補IDだけの応答は受け付けません。
 
-検索候補・モデル応答・最終転送先を共通関数で `new URL()` により解析し、ホストのあるhttp/httpsだけを許可します。userinfo（空の`@`を含む）、空白・制御文字・バックスラッシュ、壊れたパーセント符号化は拒否します。検索タイトルやsnippetに別URLへの指示が含まれていても、アプリ側の候補一覧は変更されません。採用対象の結果が候補外・不正・低確信度なら通常検索へ戻ります。予測通信自体の失敗時には、全体期限内で通常選定を試みます。
+検索候補・モデル応答・最終転送先を共通関数で `new URL()` により解析し、ホストのあるhttp/httpsだけを許可します。userinfo（空の`@`を含む）、空白・制御文字・バックスラッシュ、壊れたパーセント符号化は拒否します。検索タイトルやsnippetに別URLへの指示が含まれていても、アプリ側の候補一覧は変更されません。採用対象の結果が候補外・不正・低確信度なら通常検索へ戻ります。予測通信自体の失敗時には、全体期限内で通常選定を試みます。ただし入力・認証・権限・請求・モデル不在・利用枠の恒常エラーでは通常選定も送信しません。
 
 confidenceはモデルの自己申告であり、成功確率の保証ではありません。候補所属とURL構文の確認は、URLの存在・内容の安全性・移動後のリダイレクト先を保証しません。存在確認のための追加アクセスは行いません。
 
-公式資料確認: **2026年10月29日 19:43 JST**。[Geminiの構造化出力と値の検証](https://ai.google.dev/gemini-api/docs/structured-output)、[WHATWG URL仕様](https://url.spec.whatwg.org/)。構造化出力の導入と失敗分類は#9で扱います。
+公式資料確認: **2026年10月29日 19:43 JST**。[Geminiの構造化出力と値の検証](https://ai.google.dev/gemini-api/docs/structured-output)、[WHATWG URL仕様](https://url.spec.whatwg.org/)。
+
+### Geminiの構造化応答と再試行
+
+予測・候補選定・汎用関数は同じ `generateContent` REST処理を使い、`generationConfig.responseFormat.text` に `mimeType: APPLICATION_JSON` とJSON Schemaを指定します。許可モデル2種は公式に構造化出力対応ですが、実APIでの組合せ検証は行っていません。SDKやInteractions APIは使用しません。
+
+先頭の応答候補だけを対象にし、`finishReason: STOP` を必須にします。その候補内の思考ではないtext partを順番に連結してJSON解析し、ブロック・出力上限・未完了・候補なし・回答なし・不正JSON・型不正を区別します。別候補をつなげたり、説明文から波括弧だけを抜き出して採用したりしません。confidenceは有限のnumberかつ0〜1に限定し、`true`、`null`、文字列は拒否します。構造化出力に加えて候補URLへの完全一致検証を行います。
+
+400/401/402/403/404、501などの恒常エラーは再試行しません。408/500/502/503/504と、一時制限と判断できる429だけを最大2回再試行します。待機は1秒・2秒に最大249msのjitterを加え、`Retry-After` とGoogle RPC `RetryInfo` が指定する待機のうち長い方を尊重します。元の期限までに待機できない場合は打ち切ります。待機中のキャンセルもタイマーを解除します。再試行により送信回数が増える場合があり、サーバー処理や課金の取消しは保証しません。
+
+429は `QuotaFailure` のquotaId/metricが分・秒単位と識別でき、ゼロ枠・日次枠ではない場合、またはquota詳細なしで有効な `RetryInfo` がある場合だけ再試行します。未知の枠、日次枠、ゼロ枠、情報不足は再試行せず利用枠の確認を案内します。これは短いURL解決期限に合わせた保守的な判定で、全ての割当エラーを確定診断するものではありません。生のAPI本文、キー付きURL、元例外を表示用エラーやログに含めません。
+
+公式資料確認: **2026年10月29日 20:07〜20:09 JST**。[generateContent REST仕様](https://ai.google.dev/api/generate-content)、[構造化出力](https://ai.google.dev/gemini-api/docs/structured-output)、[3.5 Flash-Lite](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)、[2.5 Flash](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash)、[再試行指針](https://ai.google.dev/gemini-api/docs/troubleshooting)、[割当](https://ai.google.dev/gemini-api/docs/rate-limits)、[Google RPCのエラー詳細](https://github.com/googleapis/googleapis/blob/master/google/rpc/error_details.proto)。APIキーの送信方式・保存方針は#10で扱います。
 
 ### Gemini モデルと保存済み設定
 
