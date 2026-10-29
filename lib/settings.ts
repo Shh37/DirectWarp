@@ -2,6 +2,10 @@
 // アプリ設定の型定義とデフォルト値。APIキーは別ストレージキーに保存し、UI/設定オブジェクトには含めないこと。
 
 export type Theme = 'system' | 'light' | 'dark';
+export const SEARCH_PROVIDERS = ['none', 'custom-search'] as const;
+export function isSearchProvider(value: unknown): value is typeof SEARCH_PROVIDERS[number] {
+  return typeof value === 'string' && SEARCH_PROVIDERS.some((provider) => provider === value);
+}
 
 // 2026-10-29 に公式の安定版・提供状況を確認。latest / Preview は自動採用しない。
 // https://ai.google.dev/gemini-api/docs/deprecations
@@ -21,6 +25,8 @@ export function isAllowedModel(value: unknown): value is GeminiModel {
 }
 
 export interface AppSettings {
+  /** 未知の保存値も保持し、別サービスに自動で切り替えない。 */
+  searchProvider: string;
   /** 検索トリガー（先頭一致）。例: /d, !d, #go */
   trigger: string;
   /** 候補数（N）。Custom Search API の取得件数。例: 1〜10 */
@@ -38,6 +44,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  searchProvider: 'none',
   trigger: '/d',
   candidateCount: 5,
   model: 'gemini-3.5-flash-lite',

@@ -8,6 +8,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('saved model migration', () => {
   const unrelated = {
+    searchProvider: 'custom-search',
     trigger: '!warp', candidateCount: 9, timeoutMs: 29_000,
     confidenceThreshold: 0.7, predictionConfidenceThreshold: 0.95, theme: 'dark',
   } as const;
@@ -58,7 +59,7 @@ describe('saved model migration', () => {
   it('fills a missing saved model and missing fields', async () => {
     mockStorage({ [SETTINGS_KEY]: { trigger: '!keep' } });
     expect(await getSettingsSnapshot()).toEqual({
-      settings: { ...DEFAULT_SETTINGS, trigger: '!keep' }, modelMigrated: true,
+      settings: { ...DEFAULT_SETTINGS, searchProvider: 'custom-search', trigger: '!keep' }, modelMigrated: true,
     });
   });
 
@@ -73,6 +74,32 @@ describe('saved model migration', () => {
     expect(validateModel(invalid.model).ok).toBe(false);
     expect(normalizeSettings(invalid).ok).toBe(false);
     await expect(setSettings(invalid)).rejects.toThrow('サポートされていないモデル');
+    expect(local.set).not.toHaveBeenCalled();
+  });
+});
+
+describe('search provider migration', () => {
+  const secrets = { [API_KEY_KEY]: 'fake-gemini', [CUSTOM_SEARCH_API_KEY_KEY]: 'fake-search', [CUSTOM_SEARCH_CX_KEY]: 'fake-cx' };
+  it('interprets legacy settings without writing and preserves keys across repeated reads and saves', async () => {
+    const { searchProvider: _, ...legacy } = DEFAULT_SETTINGS;
+    const { data, local } = mockStorage({ [SETTINGS_KEY]: legacy, ...secrets });
+    const expected = { ...legacy, searchProvider: 'custom-search' };
+    for (let i = 0; i < 3; i++) expect(await getSettings()).toEqual(expected);
+    expect(local.set).not.toHaveBeenCalled();
+    expect(data).toEqual({ [SETTINGS_KEY]: legacy, ...secrets });
+    for (let i = 0; i < 3; i++) await setSettings(await getSettings());
+    expect(data).toEqual({ [SETTINGS_KEY]: expected, ...secrets });
+  });
+  it.each(['none', 'custom-search', 'future-search', '', null, 42])('preserves or rejects explicit value %j without a silent migration', async (searchProvider) => {
+    const initial = { [SETTINGS_KEY]: { ...DEFAULT_SETTINGS, searchProvider }, ...secrets };
+    const { data, local } = mockStorage(initial);
+    const settings = await getSettings();
+    expect(settings.searchProvider).toBe(typeof searchProvider === 'string' ? searchProvider : '');
+    expect(data).toEqual(initial);
+    if (searchProvider !== 'none' && searchProvider !== 'custom-search') {
+      expect(normalizeSettings(settings).ok).toBe(false);
+      await expect(setSettings(settings)).rejects.toThrow('検索プロバイダー');
+    }
     expect(local.set).not.toHaveBeenCalled();
   });
 });

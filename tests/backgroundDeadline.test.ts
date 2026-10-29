@@ -11,7 +11,7 @@ let signals: AbortSignal[];
 beforeEach(async () => {
   vi.useFakeTimers(); vi.resetModules(); signals = [];
   mockStorage({
-    [SETTINGS_KEY]: { ...DEFAULT_SETTINGS, timeoutMs: 1000 },
+    [SETTINGS_KEY]: { ...DEFAULT_SETTINGS, searchProvider: 'custom-search', timeoutMs: 1000 },
     [API_KEY_KEY]: 'fake-gemini', [CUSTOM_SEARCH_API_KEY_KEY]: 'fake-search', [CUSTOM_SEARCH_CX_KEY]: 'fake-cx',
   });
   Object.assign(browser, { runtime: { onMessage: { addListener: (fn: typeof listener) => { listener = fn; } } } });

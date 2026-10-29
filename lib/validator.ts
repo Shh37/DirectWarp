@@ -1,7 +1,7 @@
 // lib/validator.ts
 // 設定/入力値のバリデーションと正規化
 
-import { type AppSettings, type GeminiModel, type Theme, DEFAULT_SETTINGS, ALLOWED_MODELS, isAllowedModel } from './settings';
+import { type AppSettings, type GeminiModel, type Theme, DEFAULT_SETTINGS, ALLOWED_MODELS, isAllowedModel, isSearchProvider } from './settings';
 
 export type ValidationResult<T> =
   | { ok: true; value: T }
@@ -63,6 +63,7 @@ export function validateApiKey(input: unknown): ValidationResult<string> {
 
 export function normalizeSettings(partial: Partial<AppSettings>): ValidationResult<AppSettings> {
   const merged: AppSettings = { ...DEFAULT_SETTINGS, ...partial };
+  if (!isSearchProvider(merged.searchProvider)) return { ok: false, error: '検索プロバイダーを選び直してください。' };
 
   const t = validateTrigger(merged.trigger);
   if (!t.ok) return t as ValidationResult<AppSettings>;
@@ -88,6 +89,7 @@ export function normalizeSettings(partial: Partial<AppSettings>): ValidationResu
   return {
     ok: true,
     value: {
+      searchProvider: merged.searchProvider,
       trigger: t.value,
       candidateCount: c.value,
       model: m.value,

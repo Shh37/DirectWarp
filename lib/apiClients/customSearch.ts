@@ -2,12 +2,9 @@
 // background 専用。Google Custom Search JSON API を利用して候補URLを取得する。
 import { withTimeout, type DeadlineOptions } from '../deadline';
 import { isNavigationUrl } from '../navigationUrl';
+import { SearchProviderError, type SearchCandidate } from '../search/types';
 
-export interface CustomSearchItem {
-  url: string;
-  title?: string;
-  snippet?: string;
-}
+export type CustomSearchItem = SearchCandidate;
 
 export interface CustomSearchRequest extends DeadlineOptions {
   apiKey: string; // Google Cloud API Key for Custom Search API
@@ -29,13 +26,22 @@ export async function searchTopUrls(req: CustomSearchRequest): Promise<CustomSea
     signal,
     method: 'GET',
     headers: { 'Accept': 'application/json' },
+  }).catch(() => {
+    signal.throwIfAborted();
+    throw new SearchProviderError('network');
   }).then(async (res) => {
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`Custom Search API error: ${res.status} ${res.statusText} ${text}`);
+      await res.text().catch(() => ''); // 本文待ちも期限に含めるが、外へ返さない。
+      throw new SearchProviderError(res.status === 429 ? 'rate_limited'
+        : res.status === 401 || res.status === 403 ? 'authentication'
+        : res.status === 400 ? 'invalid_request' : 'unavailable');
     }
-    const json = await res.json();
-    const items = Array.isArray(json?.items) ? json.items : [];
+    let json;
+    try { json = await res.json(); } catch { throw new SearchProviderError('invalid_response'); }
+    if (!json || typeof json !== 'object' || Array.isArray(json) || 'error' in json || (json.items !== undefined && !Array.isArray(json.items))) {
+      throw new SearchProviderError('invalid_response');
+    }
+    const items = json.items ?? [];
     const results: CustomSearchItem[] = [];
     for (const it of items) {
       const link = typeof it?.link === 'string' ? it.link : null;

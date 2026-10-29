@@ -49,6 +49,7 @@ it('selects the current default for a new user and supports explicit model chang
   const select = await screen.findByRole<HTMLSelectElement>('combobox', { name: /^モデル/ });
   expect(select.value).toBe(DEFAULT_SETTINGS.model);
   expect(screen.queryByRole('status')).toBeNull();
+  expect(screen.getByRole<HTMLSelectElement>('combobox', { name: /^検索プロバイダー/ }).value).toBe('none');
   fireEvent.change(select, { target: { value: 'gemini-2.5-flash' } });
   fireEvent.click(screen.getByRole('button', { name: '保存' }));
   await waitFor(() => expect(data[SETTINGS_KEY]).toEqual({ ...DEFAULT_SETTINGS, model: 'gemini-2.5-flash' }));
@@ -116,5 +117,29 @@ it('preserves existing credentials on save and does not disable settings based o
   await screen.findByText('保存しました。');
   expect(data).toEqual(initial);
   expect(local.remove).not.toHaveBeenCalled();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it('shows an unknown saved provider and requires an explicit choice without probing or clearing keys', async () => {
+  const initial = { [SETTINGS_KEY]: { ...DEFAULT_SETTINGS, searchProvider: 'future-service' }, [CUSTOM_SEARCH_API_KEY_KEY]: 'fake-search', [CUSTOM_SEARCH_CX_KEY]: 'fake-cx' };
+  const { data, local } = mockStorage(initial);
+  render(<SettingsForm />);
+  const select = await screen.findByRole<HTMLSelectElement>('combobox', { name: /^検索プロバイダー/ });
+  expect(select.value).toBe('future-service');
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: '保存' }).disabled).toBe(true);
+  expect(local.set).not.toHaveBeenCalled();
+  fireEvent.change(select, { target: { value: 'none' } });
+  fireEvent.click(screen.getByRole('button', { name: '保存' }));
+  await screen.findByText('保存しました。');
+  expect(data).toEqual({ ...initial, [SETTINGS_KEY]: { ...DEFAULT_SETTINGS, searchProvider: 'none' } });
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it('displays the legacy provider until the user explicitly changes it', async () => {
+  const { searchProvider: _, ...legacy } = DEFAULT_SETTINGS;
+  const { local } = mockStorage({ [SETTINGS_KEY]: legacy });
+  render(<SettingsForm />);
+  expect((await screen.findByRole<HTMLSelectElement>('combobox', { name: '検索プロバイダー' })).value).toBe('custom-search');
+  expect(local.set).not.toHaveBeenCalled();
   expect(fetch).not.toHaveBeenCalled();
 });
