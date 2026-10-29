@@ -6,7 +6,7 @@ import { type GeminiModel } from '../settings';
 
 export interface GeminiUrlRequest {
   apiKey: string;
-  model: GeminiModel; // MVP: 'gemini-1.5-flash'
+  model: GeminiModel; // lib/settings.ts の明示的な許可モデル
   query: string; // トリガー除去後のクエリ
   candidateCount: number; // 設定のN（内部思考の目安としてプロンプトに含める）
   timeoutMs: number;
