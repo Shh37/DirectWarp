@@ -82,7 +82,7 @@ describe('background uses the same validated models as settings and UI', () => {
     expect((await resolveQuery()).error).toContain('応答候補が空');
   });
 
-  it('reports a rejected request (deadline enforcement itself belongs to issue #3)', async () => {
+  it('reports a rejected request', async () => {
     mockApis({ networkFailure: true });
     expect((await resolveQuery()).error).toContain('Aborted by mock');
   });

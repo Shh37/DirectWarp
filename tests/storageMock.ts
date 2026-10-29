@@ -9,7 +9,10 @@ export function mockStorage(initial: Record<string, unknown> = {}) {
     }),
     remove: vi.fn(async (key: string) => { delete data[key]; }),
   };
-  vi.stubGlobal('browser', { storage: { local } });
+  vi.stubGlobal('browser', {
+    storage: { local },
+    tabs: { onRemoved: { addListener: vi.fn() }, onUpdated: { addListener: vi.fn() } },
+  });
   // A forgotten API mock must fail instead of making a real request.
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Unexpected network request'); }));
   return { data, local };
