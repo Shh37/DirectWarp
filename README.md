@@ -61,7 +61,7 @@ DirectWarpは、Google/Bingの検索ページでトリガーを検知し、Custo
 - **タイムアウト(ms)**: URL解決全体の待機期限（既定15秒、保存値は1,000〜120,000ms、設定画面は1〜30秒）
 - **確信度しきい値**: リダイレクトを許可する最小スコア（0.0〜1.0、デフォルト 0.5）
 - **テーマ**: システム設定に従う / ライト / ダーク
-- **Gemini APIキー**: 背景ページのみに安全に保存（content script には共有されません）
+- **Gemini APIキー**: 端末内の拡張機能ストレージに保存し、backgroundから認証ヘッダーで送信します。暗号化された秘密保管庫ではありません。
 - **Custom Search APIキー・CX**: 既存顧客の検索に必要。入力済みでも利用資格を確認したことにはなりません。
 
 ### Custom Search の利用条件と料金
@@ -117,7 +117,19 @@ confidenceはモデルの自己申告であり、成功確率の保証ではあ�
 
 429は `QuotaFailure` のquotaId/metricが分・秒単位と識別でき、ゼロ枠・日次枠ではない場合、またはquota詳細なしで有効な `RetryInfo` がある場合だけ再試行します。未知の枠、日次枠、ゼロ枠、情報不足は再試行せず利用枠の確認を案内します。これは短いURL解決期限に合わせた保守的な判定で、全ての割当エラーを確定診断するものではありません。生のAPI本文、キー付きURL、元例外を表示用エラーやログに含めません。
 
-公式資料確認: **2026年10月29日 20:07〜20:09 JST**。[generateContent REST仕様](https://ai.google.dev/api/generate-content)、[構造化出力](https://ai.google.dev/gemini-api/docs/structured-output)、[3.5 Flash-Lite](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)、[2.5 Flash](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash)、[再試行指針](https://ai.google.dev/gemini-api/docs/troubleshooting)、[割当](https://ai.google.dev/gemini-api/docs/rate-limits)、[Google RPCのエラー詳細](https://github.com/googleapis/googleapis/blob/master/google/rpc/error_details.proto)。APIキーの送信方式・保存方針は#10で扱います。
+公式資料確認: **2026年10月29日 20:07〜20:09 JST**。[generateContent REST仕様](https://ai.google.dev/api/generate-content)、[構造化出力](https://ai.google.dev/gemini-api/docs/structured-output)、[3.5 Flash-Lite](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)、[2.5 Flash](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash)、[再試行指針](https://ai.google.dev/gemini-api/docs/troubleshooting)、[割当](https://ai.google.dev/gemini-api/docs/rate-limits)、[Google RPCのエラー詳細](https://github.com/googleapis/googleapis/blob/master/google/rpc/error_details.proto)。
+
+### Geminiキーとリクエスト保存の方針
+
+公式資料確認: **2026年10月29日 20:16〜20:17 JST**。
+
+GeminiはAuth key、または明示的なAPI制限を持つStandard keyを使用します。無制限の旧Standard keyは拒否されます。2026年5月28日以降にAI Studioで作成するキーは、サービスアカウントに関連付けられたAuth keyが既定です。キー文字列の接頭辞・長さだけで種類や利用可否を判断せず、入力の非空確認と利用案内に留めます。GeminiとCustom Searchのキーは別の保存項目であり、共用を前提にしません。既存キーを自動変換・失効・削除することはありません。[公式のキー条件](https://ai.google.dev/gemini-api/docs/api-key)
+
+全生成経路（予測・候補選定・汎用関数・再試行）は、キーを `x-goog-api-key` ヘッダーに入れ、URLクエリには含めません。検索語をGeminiへ送り、候補選定では候補URL・タイトル・要約も送ります。端末内のキー保存は外部データの保存方針とは別です。現在はユーザー自身のキーを拡張機能ストレージに保持する構成で、端末・拡張の権限を持つ人から秘密にする暗号化保管を保証しません。配布用の共通キーを同梱しません。
+
+採用方針は**全Generate Contentリクエストで `store:false` を明示**することです。2026年10月26日以降の新規有料プロジェクトはリクエスト保存が既定で有効ですが、リクエスト指定がプロジェクト設定に優先します。ユーザーのクラウド設定は変更しません。[ログとリクエスト保存](https://ai.google.dev/gemini-api/docs/logs-datasets)、[RESTのstoreフィールド](https://ai.google.dev/api/generate-content)
+
+`store:false` はAI Studioのリクエスト保存を制御するもので、無料サービスでのデータ利用や全種類の保持を無効にしません。無料サービスの入力・出力は製品改善や人手レビューに利用される場合があり、機密・個人情報は送らないでください。有料サービスでは製品改善に使わないとされますが、不正利用対策・法令対応等の一時保持は別です。EEA・スイス・英国等には適用条件の違いもあるため、プロジェクトの課金状態・地域と[データ利用条件](https://ai.google.dev/gemini-api/terms)を確認してください。拡張はこれらの利用資格をキー文字列や保存設定だけから判定しません。
 
 ### Gemini モデルと保存済み設定
 

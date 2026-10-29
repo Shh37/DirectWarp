@@ -13,7 +13,14 @@ beforeEach(() => {
   vi.useFakeTimers(); vi.spyOn(Math, 'random').mockReturnValue(0.4);
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Unexpected network request'); }));
 });
-afterEach(() => { expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); vi.unstubAllGlobals(); });
+afterEach(() => {
+  for (const [url, init] of vi.mocked(fetch).mock.calls) {
+    expect(new URL(String(url)).search).toBe('');
+    expect(new Headers(init?.headers).get('x-goog-api-key')).toBe(req.apiKey);
+    expect(JSON.parse(String(init?.body)).store).toBe(false);
+  }
+  expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); vi.unstubAllGlobals();
+});
 
 it.each([408, 500, 502, 503, 504])('retries temporary HTTP %s at most twice with backoff and jitter', async (status) => {
   vi.mocked(fetch).mockImplementation(async () => failure(status));
