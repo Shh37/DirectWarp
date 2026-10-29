@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  getSettings,
+  getSettingsSnapshot,
   setSettings,
   getApiKey,
   setApiKey,
@@ -12,7 +12,7 @@ import {
   setCustomSearchCx,
   clearCustomSearchCx,
 } from '../../lib/storage';
-import { DEFAULT_SETTINGS, ALLOWED_MODELS, type AppSettings, type GeminiModel, type Theme } from '../../lib/settings';
+import { DEFAULT_SETTINGS, ALLOWED_MODELS, MODEL_LABELS, type AppSettings, type GeminiModel, type Theme } from '../../lib/settings';
 import { validateApiKey, validateCandidateCount, validateModel, validateTheme, validateTimeoutMs, validateTrigger, normalizeSettings, validateConfidenceThreshold } from '../../lib/validator';
 
 type FieldErrors = Partial<Record<'apiKey' | 'csApiKey' | 'csCx' | keyof AppSettings, string>>;
@@ -30,6 +30,7 @@ export default function SettingsForm() {
   const [trigger, setTrigger] = useState(DEFAULT_SETTINGS.trigger);
   const [candidateCount, setCandidateCount] = useState<number>(DEFAULT_SETTINGS.candidateCount);
   const [model, setModel] = useState<GeminiModel>(DEFAULT_SETTINGS.model);
+  const [modelMigrated, setModelMigrated] = useState(false);
   const [timeoutMs, setTimeoutMs] = useState<number>(DEFAULT_SETTINGS.timeoutMs);
   const [confidenceThreshold, setConfidenceThreshold] = useState<number>(DEFAULT_SETTINGS.confidenceThreshold);
   const [predictionConfidenceThreshold, setPredictionConfidenceThreshold] = useState<number>(DEFAULT_SETTINGS.predictionConfidenceThreshold);
@@ -54,12 +55,14 @@ export default function SettingsForm() {
     (async () => {
       setLoading(true);
       try {
-        const [s, k, csk, cscx] = await Promise.all([
-          getSettings(),
+        const [snapshot, k, csk, cscx] = await Promise.all([
+          getSettingsSnapshot(),
           getApiKey(),
           getCustomSearchApiKey(),
           getCustomSearchCx(),
         ]);
+        const s = snapshot.settings;
+        setModelMigrated(snapshot.modelMigrated);
         setTrigger(s.trigger);
         setCandidateCount(s.candidateCount);
         setModel(s.model);
@@ -76,6 +79,8 @@ export default function SettingsForm() {
     })();
   }, []);
 
+  // 保存値（例: 0.85）はスライダーの刻みと一致しない場合もある。
+  // form の noValidate と組み合わせ、保存可否は共通バリデーターで判定する。
   const canSave = useMemo(() => {
     if (loading || saving) return false;
     const v1 = validateTrigger(trigger);
@@ -124,6 +129,7 @@ export default function SettingsForm() {
         csApiKey ? setCustomSearchApiKey(csApiKey) : clearCustomSearchApiKey(),
         csCx ? setCustomSearchCx(csCx) : clearCustomSearchCx(),
       ]);
+      setModelMigrated(false);
       setMessage('保存しました。');
       setTimeout(() => setMessage(''), 2000);
     } catch (e) {
@@ -141,6 +147,7 @@ export default function SettingsForm() {
         <div>読み込み中...</div>
       ) : (
         <form
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
             if (canSave) void handleSave();
@@ -176,11 +183,23 @@ export default function SettingsForm() {
             <span style={titleStyle}>モデル</span>
             <select value={model} onChange={(e) => setModel(e.target.value as GeminiModel)} style={controlStyle}>
               {ALLOWED_MODELS.map((m) => (
-                <option key={m} value={m}>{m}</option>
+                <option key={m} value={m}>{MODEL_LABELS[m]}</option>
               ))}
             </select>
             {errors.model && <span style={{ color: '#B91C1C' }}>{errors.model}</span>}
           </label>
+
+          {modelMigrated && (
+            <p role="status" style={{ margin: 0, fontSize: 13 }}>
+              保存済みモデルが未設定またはサポート対象外のため、{DEFAULT_SETTINGS.model} を適用しています。
+              検索時にもこの移行が適用されます。「保存」で選択中のモデルを記録します。他の設定やキーは移行では変更しません。
+            </p>
+          )}
+          <p style={{ margin: 0, fontSize: 13 }}>
+            新規プロジェクトには gemini-3.5-flash-lite を選んでください。
+            gemini-2.5-flash は過去に利用したユーザーにアクセスが制限されています。
+            利用可否・割り当てはプロジェクトに依存し、この画面では実APIで確認していません。
+          </p>
 
           <div style={{ display: 'grid', gap: 6 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

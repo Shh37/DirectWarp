@@ -2,19 +2,35 @@
 // browser.storage.local を用いた安全な保存/取得のラッパー。
 // 注意: APIキーはログに出力しない。例外時もキーを含めない。
 
-import { type AppSettings, DEFAULT_SETTINGS, SETTINGS_KEY, API_KEY_KEY, CUSTOM_SEARCH_API_KEY_KEY, CUSTOM_SEARCH_CX_KEY } from './settings';
+import { type AppSettings, DEFAULT_SETTINGS, SETTINGS_KEY, API_KEY_KEY, CUSTOM_SEARCH_API_KEY_KEY, CUSTOM_SEARCH_CX_KEY, isAllowedModel } from './settings';
 
-function mergeSettings(partial?: Partial<AppSettings> | null): AppSettings {
-  return { ...DEFAULT_SETTINGS, ...(partial ?? {}) };
+export interface SettingsSnapshot {
+  settings: AppSettings;
+  modelMigrated: boolean;
+}
+
+export async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
+  const obj = await browser.storage.local.get(SETTINGS_KEY);
+  const raw: unknown = obj?.[SETTINGS_KEY];
+  const partial = raw !== null && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Partial<AppSettings>
+    : {};
+  const model = isAllowedModel(partial.model) ? partial.model : DEFAULT_SETTINGS.model;
+  // 読込時はモデルだけ正規化する。background/content からの読込が設定編集中の
+  // 保存と競合しないよう、永続化は設定画面の明示的な保存時に行う。
+  // これにより先に background が読んでも、設定画面で移行を通知できる。
+  return {
+    settings: { ...DEFAULT_SETTINGS, ...partial, model },
+    modelMigrated: raw != null && !isAllowedModel(partial.model),
+  };
 }
 
 export async function getSettings(): Promise<AppSettings> {
-  const obj = await browser.storage.local.get(SETTINGS_KEY);
-  const raw = (obj?.[SETTINGS_KEY] ?? null) as Partial<AppSettings> | null;
-  return mergeSettings(raw);
+  return (await getSettingsSnapshot()).settings;
 }
 
 export async function setSettings(next: AppSettings): Promise<void> {
+  if (!isAllowedModel(next.model)) throw new Error('サポートされていないモデルです。');
   // ここでログは出さない（sensitiveな情報は含まれないが念のため最小限に）
   await browser.storage.local.set({ [SETTINGS_KEY]: next });
 }

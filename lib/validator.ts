@@ -1,7 +1,7 @@
 // lib/validator.ts
 // 設定/入力値のバリデーションと正規化
 
-import { type AppSettings, type GeminiModel, type Theme, DEFAULT_SETTINGS, ALLOWED_MODELS } from './settings';
+import { type AppSettings, type GeminiModel, type Theme, DEFAULT_SETTINGS, ALLOWED_MODELS, isAllowedModel } from './settings';
 
 export type ValidationResult<T> =
   | { ok: true; value: T }
@@ -42,10 +42,10 @@ export function validateConfidenceThreshold(input: unknown): ValidationResult<nu
 
 export function validateModel(input: unknown): ValidationResult<GeminiModel> {
   if (typeof input !== 'string') return { ok: false, error: 'モデルは文字列である必要があります。' };
-  if (!ALLOWED_MODELS.includes(input as GeminiModel)) {
+  if (!isAllowedModel(input)) {
     return { ok: false, error: `サポートされていないモデルです（許可: ${ALLOWED_MODELS.join(', ')}）` };
   }
-  return { ok: true, value: input as GeminiModel };
+  return { ok: true, value: input };
 }
 
 export function validateTheme(input: unknown): ValidationResult<Theme> {
