@@ -7,7 +7,7 @@ import { DEFAULT_SETTINGS } from '../lib/settings';
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => { expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-const base = { apiKey: 'fake-key', query: 'example', model: DEFAULT_SETTINGS.model, timeoutMs: 100, candidateCount: 5, candidates: [], cx: 'fake-cx', num: 5 };
+const base = { apiKey: 'fake-key', query: 'example', model: DEFAULT_SETTINGS.model, timeoutMs: 100, candidateCount: 5, candidates: [{ url: 'https://example.com/' }], cx: 'fake-cx', num: 5 };
 const clients = [getBestUrl, predictBestUrl, selectBestUrlFromCandidates, searchTopUrls];
 describe.each(clients)('%s deadline includes the complete response', (client) => {
   it.each(['fetch', 'json', 'error body'])('settles and aborts when %s never resolves', async (phase) => {

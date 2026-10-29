@@ -1,6 +1,7 @@
 // lib/apiClients/customSearch.ts
 // background 専用。Google Custom Search JSON API を利用して候補URLを取得する。
 import { withTimeout, type DeadlineOptions } from '../deadline';
+import { isNavigationUrl } from '../navigationUrl';
 
 export interface CustomSearchItem {
   url: string;
@@ -38,7 +39,7 @@ export async function searchTopUrls(req: CustomSearchRequest): Promise<CustomSea
     const results: CustomSearchItem[] = [];
     for (const it of items) {
       const link = typeof it?.link === 'string' ? it.link : null;
-      if (!link || !/^https?:\/\//i.test(link)) continue;
+      if (!isNavigationUrl(link)) continue;
       results.push({
         url: link,
         title: typeof it?.title === 'string' ? it.title : undefined,

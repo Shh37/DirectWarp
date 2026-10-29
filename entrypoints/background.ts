@@ -3,6 +3,7 @@ import { selectBestUrlFromCandidates, predictBestUrl } from '../lib/apiClients/g
 import { searchTopUrls } from '../lib/apiClients/customSearch';
 import { runWithDeadline } from '../lib/deadline';
 import { MAX_RESOLUTION_TIMEOUT_MS, resolutionTimeout, type ResolveResponse } from '../lib/resolution';
+import { isNavigationUrl, matchCandidateUrl } from '../lib/navigationUrl';
 
 export default defineBackground(() => {
   const active = new Map<string, { controller: AbortController; tabId?: number }>();
@@ -58,12 +59,15 @@ export default defineBackground(() => {
               deadlineAt: Math.min(deadlineAt, startTime + Math.floor(timeoutMs * 0.6)), signal,
             }).then((value) => value, () => null);
 
-            const items = await customSearchPromise;
+            const items = (await customSearchPromise).filter((item) => isNavigationUrl(item.url));
             if (!items.length) return { ok: false, error: 'Custom Search で候補が見つかりませんでした。' };
             const prediction = await predictionPromise;
             signal.throwIfAborted();
             const predictionThreshold = typeof settings.predictionConfidenceThreshold === 'number' ? settings.predictionConfidenceThreshold : 0.85;
-            if (prediction && prediction.confidence >= predictionThreshold) return { ok: true, url: prediction.url };
+            if (prediction && prediction.confidence >= predictionThreshold) {
+              const url = matchCandidateUrl(prediction.url, items);
+              return url ? { ok: true, url } : { ok: false, error: '予測URLが検索候補に一致しません。通常検索に戻ります。' };
+            }
 
             const result = await selectBestUrlFromCandidates({
               apiKey: geminiKey, model: settings.model, query: message.query, candidates: items,
@@ -71,7 +75,8 @@ export default defineBackground(() => {
             });
             const threshold = typeof settings.confidenceThreshold === 'number' ? settings.confidenceThreshold : 0.5;
             if (result.confidence < threshold) return { ok: false, error: 'モデルの確信度が低いため中断しました。' };
-            return { ok: true, url: result.url };
+            const url = matchCandidateUrl(result.url, items);
+            return url ? { ok: true, url } : { ok: false, error: '選定URLが検索候補に一致しません。通常検索に戻ります。' };
           }, deadlineAt, setupSignal);
         }, incomingDeadline, controller.signal);
       } catch (e) {

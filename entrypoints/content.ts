@@ -2,6 +2,7 @@ import { createOverlay } from './content/LoadingOverlay';
 import { getSettings } from '../lib/storage';
 import { DeadlineError } from '../lib/deadline';
 import { resolutionTimeout, SEARCH_RETURN_DELAY_MS, type ResolveResponse } from '../lib/resolution';
+import { isNavigationUrl } from '../lib/navigationUrl';
 
 function buildSearchUrl(engine: 'google' | 'bing', q: string): string {
   return `https://www.${engine}.com/search?q=${encodeURIComponent(q)}`;
@@ -61,7 +62,7 @@ export default defineContentScript({
           clearTimers();
           cancelRequest();
           overlay.remove();
-          if (url && window.location.href === pageUrl) window.location.assign(url);
+          if (isNavigationUrl(url) && window.location.href === pageUrl) window.location.assign(url);
         };
         stopActive = () => finish();
         const showFailure = (error: string) => {
@@ -90,7 +91,7 @@ export default defineContentScript({
         }).then((res: ResolveResponse | undefined) => {
           if (state !== 'waiting') return;
           if (Date.now() >= deadlineAt) { showFailure(new DeadlineError().message); return; }
-          if (res?.ok === true && typeof res.url === 'string') {
+          if (res?.ok === true && isNavigationUrl(res.url)) {
             state = 'transition';
             clearTimers();
             overlay.setMessage('DirectWarp: ワープします...');

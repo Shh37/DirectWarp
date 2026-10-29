@@ -108,3 +108,14 @@ it('rejects a late success even if the watchdog callback has not run yet', async
   expect(overlay.startWarpTransition).not.toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(2000); expectSearchOnce();
 });
+
+it.each(['javascript:alert(1)', 'https://', 'https://user:pass@example.com/', 'https://@example.com/', 'https://example.com\\path', null])('rejects an unsafe URL at the final navigation boundary: %j', async (url) => {
+  resolveReply({ ok: true, url }); await vi.advanceTimersByTimeAsync(0);
+  expect(overlay.startWarpTransition).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(2000); expectSearchOnce();
+});
+
+it.each(['予測URLが検索候補に一致しません。', '選定URLが検索候補に一致しません。', 'Custom Search で候補が見つかりませんでした。', 'モデルの確信度が低いため中断しました。'])('returns to normal search after a rejected resolution: %s', async (error) => {
+  resolveReply({ ok: false, error }); await vi.advanceTimersByTimeAsync(2000);
+  expectSearchOnce(); expect(overlay.startWarpTransition).not.toHaveBeenCalled();
+});

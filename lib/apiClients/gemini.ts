@@ -4,6 +4,7 @@
 
 import { type GeminiModel } from '../settings';
 import { withTimeout, type DeadlineOptions } from '../deadline';
+import { isNavigationUrl, matchCandidateUrl } from '../navigationUrl';
 
 export interface GeminiUrlRequest extends DeadlineOptions {
   apiKey: string;
@@ -80,7 +81,7 @@ export async function getBestUrl(req: GeminiUrlRequest): Promise<GeminiUrlRespon
     const url = (parsed as any)?.url;
     const confidence = Number((parsed as any)?.confidence);
 
-    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+    if (!isNavigationUrl(url)) {
       throw new Error('Gemini: URL形式が不正です');
     }
     if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
@@ -150,7 +151,7 @@ export async function predictBestUrl(req: GeminiPredictionRequest): Promise<Gemi
 
     const url = (parsed as any)?.url;
     const confidence = Number((parsed as any)?.confidence);
-    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+    if (!isNavigationUrl(url)) {
       throw new Error('Gemini: URL形式が不正です');
     }
     if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
@@ -228,12 +229,14 @@ export async function selectBestUrlFromCandidates(req: GeminiSelectionRequest): 
 
     const url = (parsed as any)?.url;
     const confidence = Number((parsed as any)?.confidence);
-    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+    if (!isNavigationUrl(url)) {
       throw new Error('Gemini: URL形式が不正です');
     }
     if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
       throw new Error('Gemini: confidenceが0..1の範囲外です');
     }
-    return { url, confidence } as GeminiUrlResponse;
+    const candidateUrl = matchCandidateUrl(url, req.candidates);
+    if (!candidateUrl) throw new Error('Gemini: 選定URLが検索候補に一致しません');
+    return { url: candidateUrl, confidence } as GeminiUrlResponse;
   }), req);
 }
