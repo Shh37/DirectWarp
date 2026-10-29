@@ -2,7 +2,7 @@ import { getSettings, getApiKey } from '../lib/storage';
 import { selectBestUrlFromCandidates, predictBestUrl } from '../lib/apiClients/gemini';
 import { GeminiError } from '../lib/apiClients/geminiErrors';
 import { prepareSearchProvider } from '../lib/search';
-import { runWithDeadline } from '../lib/deadline';
+import { DeadlineError, runWithDeadline } from '../lib/deadline';
 import { MAX_RESOLUTION_TIMEOUT_MS, resolutionTimeout, type ResolveResponse } from '../lib/resolution';
 import { isNavigationUrl, matchCandidateUrl } from '../lib/navigationUrl';
 
@@ -52,13 +52,15 @@ export default defineBackground(() => {
             if (!prepared.ok) return { ok: false, error: prepared.error.message };
             if (!geminiKey) return { ok: false, error: 'Gemini の APIキーが設定されていません。通常検索に戻ります。' };
 
+            const canSelectCandidates = prepared.provider.selectionMode === 'candidate-selection';
             const searchPromise = prepared.provider.search({
               query: message.query, count: settings.candidateCount, deadlineAt, signal,
             });
             // 検索完了を待たず、開始した時点で予測の成功/失敗を回収する。
             const predictionPromise = predictBestUrl({
               apiKey: geminiKey, model: settings.model, query: message.query, timeoutMs,
-              deadlineAt: Math.min(deadlineAt, startTime + Math.floor(timeoutMs * 0.6)), signal,
+              // 後続の候補選定がある場合だけ予算を残す。Tavilyは後続選定を行わない。
+              deadlineAt: canSelectCandidates ? Math.min(deadlineAt, startTime + Math.floor(timeoutMs * 0.6)) : deadlineAt, signal,
             }).then((value) => ({ value, error: null }), (error: unknown) => ({ value: null, error }));
 
             const search = await searchPromise;
@@ -67,6 +69,8 @@ export default defineBackground(() => {
             if (!items.length) return { ok: false, error: '検索候補が見つかりませんでした。' };
             const predicted = await predictionPromise;
             signal.throwIfAborted();
+            // 予測だけの経路では通信・応答エラーを確信度不足に置き換えない。
+            if (!canSelectCandidates && predicted.error !== null) throw predicted.error;
             // 恒常的な設定・権限・利用枠エラーなら、別プロンプトでも再送しない。
             if (predicted.error instanceof GeminiError && ['invalid_input', 'authentication', 'permission', 'payment', 'model_unavailable', 'quota'].includes(predicted.error.kind)) throw predicted.error;
             const prediction = predicted.value;
@@ -77,8 +81,8 @@ export default defineBackground(() => {
             }
 
             // 明示的に許されたプロバイダー以外の検索結果をGeminiへ送らない。
-            if (prepared.provider.selectionMode !== 'candidate-selection') {
-              return { ok: false, error: '予測URLの確信度が不足しているか、予測できませんでした。検索候補をAIへ送らず、通常検索に戻ります。' };
+            if (!canSelectCandidates) {
+              return { ok: false, error: '予測URLの確信度が不足しています。検索候補をAIへ送らず、通常検索に戻ります。' };
             }
             const result = await selectBestUrlFromCandidates({
               apiKey: geminiKey, model: settings.model, query: message.query, candidates: items,
@@ -91,7 +95,10 @@ export default defineBackground(() => {
           }, deadlineAt, setupSignal);
         }, incomingDeadline, controller.signal);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : '処理を中断しました。';
+        // ブラウザー固有のAbortErrorや未知の生エラーを利用者へ露出しない。
+        const msg = e instanceof DeadlineError || e instanceof GeminiError ? e.message
+          : e instanceof Error && e.name === 'AbortError' ? '処理を中断しました。通常検索に戻ります。'
+          : '処理に失敗しました。通常検索に戻ります。';
         response = { ok: false, error: `解決に失敗しました: ${msg}` };
       } finally {
         controller.abort();
