@@ -154,6 +154,29 @@ export default function SettingsForm() {
           }}
           style={{ display: 'grid', gap: 12 }}
         >
+          <section aria-label="Custom Search の利用条件" style={{ fontSize: 13, lineHeight: 1.6 }}>
+            <strong>Custom Search JSON API は既存顧客向けです</strong>
+            <p>
+              新規顧客の受付は終了しており、既存顧客向けの提供も2027年1月1日に終了します。
+              新しいAPIキー・CXを作るだけでは利用できません。既存のキー・CXがあっても利用資格は保証されません。
+            </p>
+            <p>
+              既存顧客の料金は1日100件まで無料、追加はUS$5 / 1,000件、最大1日10,000件です。
+              Gemini の料金・割り当ては別途適用されます。
+              {' '}<a href="https://developers.google.com/custom-search/v1/overview" target="_blank" rel="noreferrer">公式の提供状況・料金</a>
+            </p>
+            <p>
+              検索エンジンの設定制限として、2026年1月20日以降に作成するエンジンは対象サイト指定（Sites to search）が必要です。
+              既存エンジンの全Web検索は2027年1月1日まで継続可能と案内されています。
+              これはJSON API自体の提供終了とは別の変更です。
+              {' '}<a href="https://programmablesearchengine.googleblog.com/2026/01/updates-to-our-web-search-products.html" target="_blank" rel="noreferrer">公式の検索エンジン変更案内</a>
+            </p>
+            <p style={{ marginBottom: 0 }}>
+              公式資料確認: 2026年10月29日 19:26 JST。この画面では利用資格をAPIで確認しません。
+              通常検索はトリガーを付けずに利用できます。
+            </p>
+          </section>
+
           <label style={{ display: 'grid', gap: 6 }}>
             <span style={titleStyle}>トリガー文字列（先頭一致）</span>
             <input
@@ -297,6 +320,13 @@ export default function SettingsForm() {
             {errors.apiKey && <span style={{ color: '#B91C1C' }}>{errors.apiKey}</span>}
           </label>
 
+          <p aria-live="polite" style={{ margin: 0, fontSize: 13 }}>
+            {csApiKey.trim() && csCx.trim()
+              ? 'Custom Search: APIキー・CXは入力済みです（利用資格は未確認）。'
+              : `Custom Search: ${[!csApiKey.trim() && 'APIキー', !csCx.trim() && 'CX'].filter(Boolean).join('・')}が未設定です。自動転送には両方が必要です。`}
+            入力の変更は「保存」で適用します。自動転送できない場合は通常検索へ戻ります。
+            探索画面の「キャンセル」でも通常検索を続けられます。
+          </p>
           <label style={{ display: 'grid', gap: 6 }}>
             <span style={titleStyle}>Custom Search APIキー</span>
             <div style={{ display: 'flex', gap: 8 }}>

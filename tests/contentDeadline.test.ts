@@ -61,6 +61,15 @@ it('cancelling an error navigates once and removes the automatic return timer', 
   await vi.advanceTimersByTimeAsync(3000); expectSearchOnce();
 });
 
+it('returns to normal search after displaying missing Custom Search configuration', async () => {
+  resolveReply({ ok: false, error: 'Custom Search の APIキーまたは CX が未設定です。JSON API の新規受付は終了しています。通常検索に戻ります。' });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(overlay.setErrorWithActions).toHaveBeenCalledWith(expect.stringContaining('新規受付は終了'), expect.any(Object));
+  await vi.advanceTimersByTimeAsync(2000);
+  expectSearchOnce();
+  expect(overlay.startWarpTransition).not.toHaveBeenCalled();
+});
+
 it('allows cancellation while waiting and collects a later rejected reply', async () => {
   overlay.setActions.mock.calls[0][0].onPrimary();
   rejectReply(new Error('late failure')); await vi.advanceTimersByTimeAsync(3000);
