@@ -55,7 +55,7 @@ DirectWarpは、Google/Bingの検索ページ上でクエリ先頭のトリガ�
 - **トリガー文字列**: デフォルトは `/d`
 - **モデル**: 既定は `gemini-3.5-flash-lite`。`gemini-2.5-flash` は過去に利用したユーザー向けに保持します（下記参照）。
 - **候補数 N**: 生成する候補数（例: 1〜5）
-- **タイムアウト(ms)**: 推論の待機時間（1,000〜120,000ms）
+- **タイムアウト(ms)**: URL解決全体の待機期限（既定15秒、保存値は1,000〜120,000ms、設定画面は1〜30秒）
 - **確信度しきい値**: リダイレクトを許可する最小スコア（0.0〜1.0、デフォルト 0.5）
 - **テーマ**: システム設定に従う / ライト / ダーク
 - **Gemini APIキー**: 背景ページのみに安全に保存（content script には共有されません）
@@ -78,6 +78,14 @@ DirectWarpは、Google/Bingの検索ページ上でクエリ先頭のトリガ�
 **実APIによる利用可否・品質・速度は未検証**です。モデルの利用条件と拡張全体の導入可否は別で、検索用APIキーとCXも必要です。この変更ではサービス登録、課金、実API呼び出しを行いません。
 
 根拠: [モデルカタログ](https://ai.google.dev/gemini-api/docs/models)、[3.5 Flash-Lite の仕様](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)、[提供終了・アクセス制限](https://ai.google.dev/gemini-api/docs/deprecations)、[料金](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.5-flash-lite)、[リリースノート](https://ai.google.dev/gemini-api/docs/changelog)、[移行時のAPI変更](https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.6)。
+
+### タイムアウトと通常検索への復帰
+
+URL解決を要求する時点で期限を決め、メッセージ配送、background の設定読込、Custom Search、Gemini の予測・候補選定、応答本文の読込まで同じ期限を共有します。予測には全体時間の60%までを使い、候補選定で待機時間を与え直しません。既存の保存済みタイムアウト値は変更しません。
+
+期限切れ・通信失敗時はエラーを表示し、2秒後にトリガーを除いた通常検索へ戻ります。background から応答が来ない場合も content 側の監視で復帰します。「キャンセル」で直ちに通常検索へ戻れます。「設定を開く」を選んだ場合は自動復帰を止めます。画面離脱時には通信と復帰・ワープ用タイマーを解除し、期限後の遅延応答で再転送しません。
+
+2026年10月29日 19:08〜19:09 JST に [Fetch仕様](https://fetch.spec.whatwg.org/#abort-fetch) と [AbortControllerの説明](https://developer.mozilla.org/en-US/docs/Web/API/AbortController/abort) を確認しました。クライアントの中断はサーバー側の処理停止や課金取消しを保証しません。
 
 ## 🛠 開発
 
@@ -104,7 +112,7 @@ npm run build
 npm run build:firefox
 ```
 
-テストは拡張機能ストレージと外部APIをモックし、設定移行・設定画面での保存・background のモデル選択と失敗応答を検証します。実APIへの通信は行いません。タイムアウトの強制終了自体は Issue #3 の対象です。
+テストは拡張機能ストレージと外部APIをモックし、設定移行・設定画面での保存・モデル選択・通信と本文読込の期限・キャンセル・通常検索への復帰を検証します。実APIへの通信は行いません。
 
 ### パッケージ化
 

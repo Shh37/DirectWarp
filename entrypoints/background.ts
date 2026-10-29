@@ -1,96 +1,89 @@
 import { getSettings, getApiKey, getCustomSearchApiKey, getCustomSearchCx } from '../lib/storage';
-import { selectBestUrlFromCandidates, predictBestUrl, type GeminiUrlResponse } from '../lib/apiClients/gemini';
+import { selectBestUrlFromCandidates, predictBestUrl } from '../lib/apiClients/gemini';
 import { searchTopUrls } from '../lib/apiClients/customSearch';
+import { runWithDeadline } from '../lib/deadline';
+import { MAX_RESOLUTION_TIMEOUT_MS, resolutionTimeout, type ResolveResponse } from '../lib/resolution';
 
 export default defineBackground(() => {
-  // DirectWarp background: content からのURL解決要求を受けて
-  // Custom Search で候補URLを取得 → Gemini で最適1件を選定
-  // 注意: APIキーは一切ログに出力しない
+  const active = new Map<string, { controller: AbortController; tabId?: number }>();
+  const cancelTab = (tabId: number) => {
+    for (const request of active.values()) {
+      if (request.tabId === tabId) request.controller.abort();
+    }
+  };
+  browser.tabs.onRemoved.addListener(cancelTab);
+  browser.tabs.onUpdated.addListener((tabId, change) => {
+    if (change.status === 'loading') cancelTab(tabId);
+  });
 
-  browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!message || message.type !== 'directwarp:resolve') return;
-    (async () => {
-      const startTime = Date.now();
+  browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!message || !['directwarp:resolve', 'directwarp:cancel'].includes(message.type)) return;
+    // requestId は content の各処理で生成。別タブ/フレームの処理を中断しない。
+    const requestId = typeof message.requestId === 'string' ? message.requestId : crypto.randomUUID();
+    const key = `${sender.tab?.id}:${sender.frameId}:${requestId}`;
+    if (message.type === 'directwarp:cancel') {
+      active.get(key)?.controller.abort();
+      return;
+    }
+    const startTime = Date.now();
+    const controller = new AbortController();
+    active.get(key)?.controller.abort();
+    active.set(key, { controller, tabId: sender.tab?.id });
+    // content の期限はメッセージ配送時間も含む。旧contentには設定読込後に期限を適用。
+    const incomingDeadline = typeof message.deadlineAt === 'number' && Number.isFinite(message.deadlineAt)
+      ? Math.min(message.deadlineAt, startTime + MAX_RESOLUTION_TIMEOUT_MS)
+      : startTime + MAX_RESOLUTION_TIMEOUT_MS;
+
+    void (async () => {
+      let response: ResolveResponse;
       try {
-        const { query } = message as { type: string; query: string };
-        const settings = await getSettings();
-        const geminiKey = await getApiKey();
-        const csKey = await getCustomSearchApiKey();
-        const csCx = await getCustomSearchCx();
-        if (!geminiKey) {
-          sendResponse({ ok: false, error: 'Gemini の APIキーが設定されていません。' });
-          return;
-        }
-        if (!csKey || !csCx) {
-          sendResponse({ ok: false, error: 'Custom Search の APIキーまたは CX が設定されていません。' });
-          return;
-        }
+        response = await runWithDeadline(async (setupSignal) => {
+          const settings = await getSettings();
+          setupSignal.throwIfAborted();
+          const timeoutMs = resolutionTimeout(settings.timeoutMs);
+          const deadlineAt = Math.min(incomingDeadline, startTime + timeoutMs);
+          return runWithDeadline(async (signal): Promise<ResolveResponse> => {
+            const [geminiKey, csKey, csCx] = await Promise.all([getApiKey(), getCustomSearchApiKey(), getCustomSearchCx()]);
+            signal.throwIfAborted();
+            if (!geminiKey) return { ok: false, error: 'Gemini の APIキーが設定されていません。' };
+            if (!csKey || !csCx) return { ok: false, error: 'Custom Search の APIキーまたは CX が設定されていません。' };
 
-        // 並列処理: Custom Search と予測的Geminiを同時に開始
-        const customSearchPromise = searchTopUrls({
-          apiKey: csKey,
-          cx: csCx,
-          query,
-          num: settings.candidateCount,
-          timeoutMs: settings.timeoutMs,
-        });
+            const customSearchPromise = searchTopUrls({
+              apiKey: csKey, cx: csCx, query: message.query, num: settings.candidateCount,
+              timeoutMs, deadlineAt, signal,
+            });
+            // 検索完了を待たず、開始した時点で予測の成功/失敗を回収する。
+            const predictionPromise = predictBestUrl({
+              apiKey: geminiKey, model: settings.model, query: message.query, timeoutMs,
+              deadlineAt: Math.min(deadlineAt, startTime + Math.floor(timeoutMs * 0.6)), signal,
+            }).then((value) => value, () => null);
 
-        const predictionPromise = predictBestUrl({
-          apiKey: geminiKey,
-          model: settings.model,
-          query,
-          timeoutMs: Math.floor(settings.timeoutMs * 0.6), // 予測は短めタイムアウト
-        });
+            const items = await customSearchPromise;
+            if (!items.length) return { ok: false, error: 'Custom Search で候補が見つかりませんでした。' };
+            const prediction = await predictionPromise;
+            signal.throwIfAborted();
+            const predictionThreshold = typeof settings.predictionConfidenceThreshold === 'number' ? settings.predictionConfidenceThreshold : 0.85;
+            if (prediction && prediction.confidence >= predictionThreshold) return { ok: true, url: prediction.url };
 
-        // Custom Search結果を待機
-        const items = await customSearchPromise;
-        if (!items.length) {
-          sendResponse({ ok: false, error: 'Custom Search で候補が見つかりませんでした。' });
-          return;
-        }
-
-        const threshold = typeof settings.confidenceThreshold === 'number' ? settings.confidenceThreshold : 0.5;
-        const predictionThreshold = typeof settings.predictionConfidenceThreshold === 'number' ? settings.predictionConfidenceThreshold : 0.85;
-
-        // 予測結果を確認（高確信度なら即時リターン）
-        let predictionResult: GeminiUrlResponse | null = null;
-        let predictionUsed = false;
-        try {
-          predictionResult = await predictionPromise;
-          if (predictionResult && predictionResult.confidence >= predictionThreshold) {
-            // 予測結果の確信度が高い場合は即時リターン
-            predictionUsed = true;
-            const totalTime = Date.now() - startTime;
-            console.log(`DirectWarp: 予測早期リターン ${totalTime}ms (confidence: ${predictionResult.confidence})`);
-            sendResponse({ ok: true, url: predictionResult.url });
-            return;
-          }
-        } catch {
-          // 予測失敗は無視して本番処理へ
-        }
-
-        // 2) Gemini で候補群から最適な1件を選定（本番処理）
-        const result = await selectBestUrlFromCandidates({
-          apiKey: geminiKey,
-          model: settings.model,
-          query,
-          candidates: items,
-          timeoutMs: settings.timeoutMs,
-        });
-
-        if (result.confidence < threshold) {
-          sendResponse({ ok: false, error: 'モデルの確信度が低いため中断しました。' });
-          return;
-        }
-
-        sendResponse({ ok: true, url: result.url });
-        const totalTime = Date.now() - startTime;
-        console.log(`DirectWarp: 本番処理完了 ${totalTime}ms (confidence: ${result.confidence})`);
+            const result = await selectBestUrlFromCandidates({
+              apiKey: geminiKey, model: settings.model, query: message.query, candidates: items,
+              timeoutMs, deadlineAt, signal,
+            });
+            const threshold = typeof settings.confidenceThreshold === 'number' ? settings.confidenceThreshold : 0.5;
+            if (result.confidence < threshold) return { ok: false, error: 'モデルの確信度が低いため中断しました。' };
+            return { ok: true, url: result.url };
+          }, deadlineAt, setupSignal);
+        }, incomingDeadline, controller.signal);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        sendResponse({ ok: false, error: `解決に失敗しました: ${msg}` });
+        const msg = e instanceof Error ? e.message : '処理を中断しました。';
+        response = { ok: false, error: `解決に失敗しました: ${msg}` };
+      } finally {
+        controller.abort();
+        if (active.get(key)?.controller === controller) active.delete(key);
       }
+      // ページが既に閉じられていても、応答の再送や未処理rejectionを生じさせない。
+      try { sendResponse(response); } catch {}
     })();
-    return true; // 非同期応答
+    return true;
   });
 });

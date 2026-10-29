@@ -1,18 +1,21 @@
 // entrypoints/content/LoadingOverlay.tsx
 // Reactに依存しない軽量オーバーレイ。アクセントカラーは #6B818E。
 
+type OverlayActions = {
+  primaryLabel: string;
+  onPrimary: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
+};
+
 export type OverlayHandle = {
   setMessage: (msg: string) => void;
   setError: (msg: string) => void;
   setErrorWithActions: (
     msg: string,
-    actions: {
-      primaryLabel: string;
-      onPrimary: () => void;
-      secondaryLabel?: string;
-      onSecondary?: () => void;
-    },
+    actions: OverlayActions,
   ) => void;
+  setActions: (actions: OverlayActions) => void;
   clearActions: () => void;
   remove: () => void;
   startWarpTransition: (onComplete?: () => void) => void;
@@ -22,6 +25,9 @@ const ACCENT = '#6B818E';
 type ThemeMode = 'system' | 'light' | 'dark';
 
 export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?: { theme?: ThemeMode }): OverlayHandle {
+  let removed = false;
+  let warpTimer: ReturnType<typeof setTimeout> | undefined;
+  let warpCover: HTMLDivElement | undefined;
   const root = document.createElement('div');
   root.id = 'directwarp-overlay-root';
   Object.assign(root.style, {
@@ -184,6 +190,9 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?:
     },
     setErrorWithActions(msg, cfg) {
       this.setError(msg);
+      this.setActions(cfg);
+    },
+    setActions(cfg) {
       clearActions();
       actions.style.marginTop = '12px';
       const primary = makeBtn(cfg.primaryLabel);
@@ -202,11 +211,16 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?:
       clearActions();
     },
     remove() {
+      removed = true;
+      clearTimeout(warpTimer);
+      warpTimer = undefined;
+      warpCover?.remove();
       root.remove();
     },
     startWarpTransition(onComplete?: () => void) {
+      if (removed || warpCover) return;
       // ワープ用の半透明のぼかし覆いを作成
-      const warpCover = document.createElement('div');
+      warpCover = document.createElement('div');
       Object.assign(warpCover.style, {
         position: 'fixed',
         inset: '0',
@@ -222,8 +236,9 @@ export function createOverlay(initialMsg = 'DirectWarp: 実行中...', options?:
       document.documentElement.appendChild(warpCover);
       
       // アニメーション完了後にコールバック実行
-      setTimeout(() => {
-        if (onComplete) onComplete();
+      warpTimer = setTimeout(() => {
+        warpTimer = undefined;
+        if (!removed && onComplete) onComplete();
         // 覆いを削除しない（ワープ後に自然に消える）
       }, 600);
     },

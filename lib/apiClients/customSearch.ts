@@ -1,5 +1,6 @@
 // lib/apiClients/customSearch.ts
 // background 専用。Google Custom Search JSON API を利用して候補URLを取得する。
+import { withTimeout, type DeadlineOptions } from '../deadline';
 
 export interface CustomSearchItem {
   url: string;
@@ -7,20 +8,12 @@ export interface CustomSearchItem {
   snippet?: string;
 }
 
-export interface CustomSearchRequest {
+export interface CustomSearchRequest extends DeadlineOptions {
   apiKey: string; // Google Cloud API Key for Custom Search API
   cx: string; // Custom Search Engine ID
   query: string; // 検索クエリ（トリガー除去後）
   num: number; // 1..10
   timeoutMs: number;
-}
-
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), ms);
-  return new Promise<T>((resolve, reject) => {
-    p.then(resolve).catch(reject).finally(() => clearTimeout(t));
-  });
 }
 
 export async function searchTopUrls(req: CustomSearchRequest): Promise<CustomSearchItem[]> {
@@ -31,7 +24,8 @@ export async function searchTopUrls(req: CustomSearchRequest): Promise<CustomSea
   url.searchParams.set('q', req.query);
   url.searchParams.set('num', String(n));
 
-  const fetchPromise = fetch(url.toString(), {
+  return withTimeout((signal) => fetch(url.toString(), {
+    signal,
     method: 'GET',
     headers: { 'Accept': 'application/json' },
   }).then(async (res) => {
@@ -52,7 +46,5 @@ export async function searchTopUrls(req: CustomSearchRequest): Promise<CustomSea
       });
     }
     return results;
-  });
-
-  return withTimeout(fetchPromise, req.timeoutMs);
+  }), req);
 }

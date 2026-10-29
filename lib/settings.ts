@@ -27,7 +27,7 @@ export interface AppSettings {
   candidateCount: number;
   /** 明示的に許可した安定版モデル。2.5 Flash は既存利用者向け。 */
   model: GeminiModel;
-  /** 推論タイムアウト(ms) */
+  /** URL解決全体の期限(ms)。検索・予測・選定と応答本文の読込で共有する。 */
   timeoutMs: number;
   /** リダイレクト許可の確信度しきい値(0.0-1.0) */
   confidenceThreshold: number;
@@ -41,7 +41,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   trigger: '/d',
   candidateCount: 5,
   model: 'gemini-3.5-flash-lite',
-  // デフォルトの推論タイムアウト: 15s（要件に明記なしのため合理的な値を採用）
+  // URL解決全体の既定期限: 15s。既存の保存値は変更しない。
   timeoutMs: 15_000,
   confidenceThreshold: 0.5,
   predictionConfidenceThreshold: 0.85,

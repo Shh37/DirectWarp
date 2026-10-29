@@ -3,8 +3,9 @@
 // Google Generative Language (Gemini) API v1beta を使用。
 
 import { type GeminiModel } from '../settings';
+import { withTimeout, type DeadlineOptions } from '../deadline';
 
-export interface GeminiUrlRequest {
+export interface GeminiUrlRequest extends DeadlineOptions {
   apiKey: string;
   model: GeminiModel; // lib/settings.ts の明示的な許可モデル
   query: string; // トリガー除去後のクエリ
@@ -33,14 +34,6 @@ function buildPrompt(q: string, n: number): string {
   ].join('\n');
 }
 
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), ms);
-  return new Promise<T>((resolve, reject) => {
-    p.then(resolve).catch(reject).finally(() => clearTimeout(t));
-  });
-}
-
 export async function getBestUrl(req: GeminiUrlRequest): Promise<GeminiUrlResponse> {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${req.model}:generateContent?key=${encodeURIComponent(req.apiKey)}`;
   const body = {
@@ -53,7 +46,8 @@ export async function getBestUrl(req: GeminiUrlRequest): Promise<GeminiUrlRespon
     // 必要に応じて generationConfig を追加可能
   } as const;
 
-  const fetchPromise = fetch(endpoint, {
+  return withTimeout((signal) => fetch(endpoint, {
+    signal,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -93,13 +87,11 @@ export async function getBestUrl(req: GeminiUrlRequest): Promise<GeminiUrlRespon
       throw new Error('Gemini: confidenceが0..1の範囲外です');
     }
     return { url, confidence } satisfies GeminiUrlResponse;
-  });
-
-  return withTimeout(fetchPromise, req.timeoutMs);
+  }), req);
 }
 
 // --- 予測的なURL推論（候補なしでクエリのみから） ---
-export interface GeminiPredictionRequest {
+export interface GeminiPredictionRequest extends DeadlineOptions {
   apiKey: string;
   model: GeminiModel;
   query: string;
@@ -128,7 +120,8 @@ export async function predictBestUrl(req: GeminiPredictionRequest): Promise<Gemi
     ],
   } as const;
 
-  const fetchPromise = fetch(endpoint, {
+  return withTimeout((signal) => fetch(endpoint, {
+    signal,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -164,13 +157,11 @@ export async function predictBestUrl(req: GeminiPredictionRequest): Promise<Gemi
       throw new Error('Gemini: confidenceが0..1の範囲外です');
     }
     return { url, confidence } as GeminiUrlResponse;
-  });
-
-  return withTimeout(fetchPromise, req.timeoutMs);
+  }), req);
 }
 
 // --- 候補URL群から1件選定するインターフェース ---
-export interface GeminiSelectionRequest {
+export interface GeminiSelectionRequest extends DeadlineOptions {
   apiKey: string;
   model: GeminiModel;
   query: string; // 元クエリ（文脈）
@@ -207,7 +198,8 @@ export async function selectBestUrlFromCandidates(req: GeminiSelectionRequest): 
     ],
   } as const;
 
-  const fetchPromise = fetch(endpoint, {
+  return withTimeout((signal) => fetch(endpoint, {
+    signal,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -243,7 +235,5 @@ export async function selectBestUrlFromCandidates(req: GeminiSelectionRequest): 
       throw new Error('Gemini: confidenceが0..1の範囲外です');
     }
     return { url, confidence } as GeminiUrlResponse;
-  });
-
-  return withTimeout(fetchPromise, req.timeoutMs);
+  }), req);
 }
