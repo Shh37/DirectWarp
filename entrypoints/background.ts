@@ -5,8 +5,10 @@ import { prepareSearchProvider } from '../lib/search';
 import { DeadlineError, runWithDeadline } from '../lib/deadline';
 import { MAX_RESOLUTION_TIMEOUT_MS, resolutionTimeout, type ResolveResponse } from '../lib/resolution';
 import { isNavigationUrl, matchCandidateUrl } from '../lib/navigationUrl';
+import { installResolutionDiagnostics, takeResolutionDiagnostic, type ResolutionDiagnostic } from '../lib/resolutionDiagnostics';
 
 export default defineBackground(() => {
+  installResolutionDiagnostics();
   const active = new Map<string, { controller: AbortController; tabId?: number }>();
   const cancelTab = (tabId: number) => {
     for (const request of active.values()) {
@@ -28,6 +30,11 @@ export default defineBackground(() => {
       return;
     }
     const startTime = Date.now();
+    const reportDiagnostic = takeResolutionDiagnostic();
+    const diagnostic: ResolutionDiagnostic | undefined = reportDiagnostic ? {
+      extensionId: browser.runtime.id, candidateLimit: null, candidateUrls: [], prediction: null,
+      predictionThreshold: null, matchedUrl: null, outcome: 'fallback', error: null, elapsedMs: 0,
+    } : undefined;
     const controller = new AbortController();
     active.get(key)?.controller.abort();
     active.set(key, { controller, tabId: sender.tab?.id });
@@ -41,6 +48,7 @@ export default defineBackground(() => {
       try {
         response = await runWithDeadline(async (setupSignal) => {
           const settings = await getSettings();
+          if (diagnostic) diagnostic.candidateLimit = settings.candidateCount;
           setupSignal.throwIfAborted();
           const timeoutMs = resolutionTimeout(settings.timeoutMs);
           const deadlineAt = Math.min(incomingDeadline, startTime + timeoutMs);
@@ -66,6 +74,7 @@ export default defineBackground(() => {
             const search = await searchPromise;
             if (!search.ok) return { ok: false, error: search.error.message };
             const items = search.candidates.filter((item) => isNavigationUrl(item.url));
+            if (diagnostic) diagnostic.candidateUrls = items.map((item) => item.url);
             if (!items.length) return { ok: false, error: '検索候補が見つかりませんでした。' };
             const predicted = await predictionPromise;
             signal.throwIfAborted();
@@ -75,6 +84,10 @@ export default defineBackground(() => {
             if (predicted.error instanceof GeminiError && ['invalid_input', 'authentication', 'permission', 'payment', 'model_unavailable', 'quota'].includes(predicted.error.kind)) throw predicted.error;
             const prediction = predicted.value;
             const predictionThreshold = typeof settings.predictionConfidenceThreshold === 'number' ? settings.predictionConfidenceThreshold : 0.85;
+            if (diagnostic) {
+              diagnostic.prediction = prediction ? { url: prediction.url, confidence: prediction.confidence } : null;
+              diagnostic.predictionThreshold = predictionThreshold;
+            }
             if (prediction && prediction.confidence >= predictionThreshold) {
               const url = matchCandidateUrl(prediction.url, items);
               return url ? { ok: true, url } : { ok: false, error: '予測URLが検索候補に一致しません。通常検索に戻ります。' };
@@ -103,6 +116,13 @@ export default defineBackground(() => {
       } finally {
         controller.abort();
         if (active.get(key)?.controller === controller) active.delete(key);
+      }
+      if (diagnostic && reportDiagnostic) {
+        diagnostic.outcome = response.ok ? 'redirect' : 'fallback';
+        diagnostic.matchedUrl = response.ok ? response.url : null;
+        diagnostic.error = response.ok ? null : response.error;
+        diagnostic.elapsedMs = Date.now() - startTime;
+        reportDiagnostic(diagnostic);
       }
       // ページが既に閉じられていても、応答の再送や未処理rejectionを生じさせない。
       try { sendResponse(response); } catch {}
