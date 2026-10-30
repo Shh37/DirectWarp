@@ -76,6 +76,19 @@ it('shares the remaining budget with selection instead of starting a new timeout
   expect(signals.every((signal) => signal.aborted)).toBe(true);
 });
 
+it('keeps the 60-percent prediction budget for Custom Search and uses the remainder for selection', async () => {
+  let geminiCalls = 0;
+  mockFetch((search) => search ? Promise.resolve(searchResult())
+    : ++geminiCalls === 1 ? pending() : Promise.resolve(geminiResult()));
+  const reply = await start();
+  await vi.advanceTimersByTimeAsync(599); expect(reply).not.toHaveBeenCalled();
+  expect(fetch).toHaveBeenCalledTimes(2);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(reply).toHaveBeenCalledExactlyOnceWith({ ok: true, url: 'https://example.com/' });
+  expect(fetch).toHaveBeenCalledTimes(3);
+  expect(signals.every((signal) => signal.aborted)).toBe(true);
+});
+
 it('does not resend a response when fetch resolves after the deadline', async () => {
   let late!: (value: Response) => void;
   mockFetch((search) => search ? new Promise((resolve) => { late = resolve; }) : pending());
@@ -111,4 +124,11 @@ it('includes message delivery time and a stalled settings read in the content de
   expect(reply).toHaveBeenCalledExactlyOnceWith({ ok: false, error: expect.stringContaining('タイムアウト') });
   lateSettings({ [SETTINGS_KEY]: DEFAULT_SETTINGS }); await vi.advanceTimersByTimeAsync(0);
   expect(fetch).not.toHaveBeenCalled(); expect(reply).toHaveBeenCalledOnce();
+});
+
+it('does not expose an unknown setup error or its private contents', async () => {
+  vi.mocked(browser.storage.local.get).mockRejectedValueOnce(new Error('private fake-gemini key'));
+  const reply = await start();
+  expect(reply).toHaveBeenCalledExactlyOnceWith({ ok: false, error: '解決に失敗しました: 処理に失敗しました。通常検索に戻ります。' });
+  expect(fetch).not.toHaveBeenCalled();
 });
